@@ -1,0 +1,17 @@
+{
+  "name": "sipkita",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": ["client", "server"],
+  "scripts": {
+    "dev": "concurrently -k -n server,client \"npm run dev -w server\" \"npm run dev -w client\"",
+    "dev:client": "npm run dev -w client",
+    "dev:server": "npm run dev -w server",
+    "build": "npm run build -w client",
+    "prisma:generate": "npm run prisma:generate -w server",
+    "prisma:validate": "npm run prisma:validate -w server"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
