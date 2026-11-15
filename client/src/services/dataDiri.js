@@ -1,14 +1,8 @@
 import api from './api.js';
+import { apiErrorMessage } from './apiError.js';
 
 export function dataDiriErrorMessage(error, defaultMessage = 'Terjadi kesalahan pada data diri.') {
-  const backendMessage = error?.response?.data?.error?.message;
-  if (backendMessage && typeof backendMessage === 'string') {
-    return backendMessage;
-  }
-  if (error?.message && typeof error.message === 'string' && !error.response) {
-    return 'Koneksi ke server gagal. Periksa jaringan Anda.';
-  }
-  return defaultMessage;
+  return apiErrorMessage(error, { fallback: defaultMessage });
 }
 
 export async function fetchMyDataDiri() {

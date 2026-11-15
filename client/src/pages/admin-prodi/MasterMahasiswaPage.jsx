@@ -123,15 +123,14 @@ export default function MasterMahasiswaPage() {
         limit: 20,
         search: activeSearch,
         tahun_angkatan: selectedAngkatan || null,
-        signal: controller.signal,
-      });
+      }, { signal: controller.signal });
 
       if (currentSeq !== requestSeqRef.current) return;
 
-      setStudents(response.data || []);
-      if (response.meta?.summary) setCounts(response.meta.summary);
+      setStudents(response.items || []);
+      if (response.summary) setCounts(response.summary);
       setPagination(
-        response.meta?.pagination || {
+        response.pagination || {
           page: 1,
           limit: 20,
           total_items: 0,

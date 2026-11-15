@@ -1,17 +1,10 @@
 import api from './api.js';
+import { apiErrorMessage } from './apiError.js';
+import { readListResponse } from './apiResponse.js';
 
 export function mahasiswaErrorMessage(error, defaultMessage = 'Terjadi kesalahan pada data mahasiswa.') {
-  const backendMessage = error?.response?.data?.error?.message;
-  if (backendMessage && typeof backendMessage === 'string') {
-    return backendMessage;
-  }
-  if (error?.code === 'ECONNABORTED' || error?.code === 'ETIMEDOUT') {
-    return 'Proses terlalu lama. Periksa kembali hasil impor sebelum mencoba ulang.';
-  }
-  if (error?.message && typeof error.message === 'string' && !error.response) {
-    return 'Koneksi ke server gagal. Periksa jaringan Anda.';
-  }
-  return defaultMessage;
+  return apiErrorMessage(error, { fallback: defaultMessage,
+    timeoutMessage: 'Proses terlalu lama. Periksa kembali hasil impor sebelum mencoba ulang.' });
 }
 
 /**
@@ -23,8 +16,7 @@ export async function fetchMahasiswaList({
   limit = 20,
   search = '',
   tahun_angkatan = null,
-  signal,
-} = {}) {
+} = {}, { signal } = {}) {
   const params = {};
   if (page) params.page = page;
   if (limit) params.limit = limit;
@@ -32,7 +24,7 @@ export async function fetchMahasiswaList({
   if (tahun_angkatan) params.tahun_angkatan = Number(tahun_angkatan);
 
   const response = await api.get('/api/master/mahasiswa', { params, signal });
-  return response.data;
+  return readListResponse(response);
 }
 
 /**

@@ -1,14 +1,9 @@
 import api from './api.js';
+import { apiErrorMessage } from './apiError.js';
+import { readListResponse } from './apiResponse.js';
 
 export function adminDataDiriErrorMessage(error, defaultMessage = 'Terjadi kesalahan pada verifikasi data diri.') {
-  const backendMessage = error?.response?.data?.error?.message;
-  if (backendMessage && typeof backendMessage === 'string') {
-    return backendMessage;
-  }
-  if (error?.message && typeof error.message === 'string' && !error.response) {
-    return 'Koneksi ke server gagal. Periksa jaringan Anda.';
-  }
-  return defaultMessage;
+  return apiErrorMessage(error, { fallback: defaultMessage });
 }
 
 /**
@@ -22,8 +17,7 @@ export async function fetchAdminDataDiriList({
   search = '',
   status = '',
   lengkap = null,
-  signal,
-} = {}) {
+} = {}, { signal } = {}) {
   const params = {};
   if (page) params.page = page;
   if (limit) params.limit = limit;
@@ -33,7 +27,7 @@ export async function fetchAdminDataDiriList({
   else if (lengkap === false || lengkap === 'false') params.lengkap = 'false';
 
   const response = await api.get('/api/admin-prodi/verifikasi-data-diri', { params, signal });
-  return response.data;
+  return readListResponse(response);
 }
 
 /**

@@ -1,4 +1,5 @@
 import api from './api.js';
+import { apiErrorMessage } from './apiError.js';
 
 const BASE_PATH = '/api/admin-prodi/pengajuan';
 
@@ -29,7 +30,6 @@ export const ADMIN_KP_CATEGORY_STATUS = Object.freeze({
 export function adminPengajuanKpErrorMessage(error, defaultMessage = 'Terjadi kesalahan pada pemeriksaan pengajuan KP.') {
   const errData = error?.response?.data?.error;
   const code = errData?.code;
-  const backendMessage = errData?.message;
 
   if (code === 'STALE_SNAPSHOT') {
     return 'Data pengajuan telah diperbarui oleh mahasiswa atau pengguna lain. Halaman akan dimuat ulang.';
@@ -49,13 +49,7 @@ export function adminPengajuanKpErrorMessage(error, defaultMessage = 'Terjadi ke
   if (code === 'APPLICATION_LOCKED') {
     return 'Pengajuan ini sudah berstatus final dan terkunci.';
   }
-  if (backendMessage && typeof backendMessage === 'string') {
-    return backendMessage;
-  }
-  if (error?.message && typeof error.message === 'string' && !error.response) {
-    return 'Koneksi ke server gagal. Periksa jaringan Anda.';
-  }
-  return defaultMessage;
+  return apiErrorMessage(error, { fallback: defaultMessage });
 }
 
 /**

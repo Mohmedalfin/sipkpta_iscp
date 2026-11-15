@@ -11,16 +11,17 @@ export function useAcademicSettingsList(resource, params = {}) {
 
   useEffect(() => {
     let active = true;
+    const controller = new AbortController();
     setLoading(true);
     setError('');
-    listSettings(resource, JSON.parse(query))
+    listSettings(resource, JSON.parse(query), { signal: controller.signal })
       .then((value) => {
         if (!active) return;
         setResult(Array.isArray(value) ? { data: value, pagination: null } : value);
       })
       .catch((reason) => { if (active) setError(settingsError(reason)); })
       .finally(() => { if (active) setLoading(false); });
-    return () => { active = false; };
+    return () => { active = false; controller.abort(); };
   }, [resource, query, revision]);
 
   return { ...result, loading, error, refresh };

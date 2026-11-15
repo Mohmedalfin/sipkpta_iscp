@@ -117,15 +117,14 @@ export default function MasterDosenPage() {
         page,
         limit: 20,
         search: activeSearch,
-        signal: controller.signal,
-      });
+      }, { signal: controller.signal });
 
       if (currentSeq !== requestSeqRef.current) return;
 
-      setLecturers(response.data || []);
-      if (response.meta?.summary) setCounts(response.meta.summary);
+      setLecturers(response.items || []);
+      if (response.summary) setCounts(response.summary);
       setPagination(
-        response.meta?.pagination || {
+        response.pagination || {
           page: 1,
           limit: 20,
           total_items: 0,

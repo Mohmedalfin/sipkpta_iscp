@@ -137,15 +137,14 @@ export default function VerifikasiDataDiriPage() {
         limit: 15,
         search: activeSearch,
         status: activeStatus,
-        signal: controller.signal,
-      });
+      }, { signal: controller.signal });
 
       // Ignore response if a newer search/filter request was started
       if (currentSeq !== requestSeqRef.current) return;
 
-      setStudents(response.data || []);
-      if (response.meta?.summary) setCounts(response.meta.summary);
-      setPagination(response.meta?.pagination || { page: 1, limit: 15, total_items: 0, total_pages: 1 });
+      setStudents(response.items || []);
+      if (response.summary) setCounts(response.summary);
+      setPagination(response.pagination || { page: 1, limit: 15, total_items: 0, total_pages: 1 });
     } catch (err) {
       if (currentSeq !== requestSeqRef.current) return;
       if (err.code === 'ERR_CANCELED') return;

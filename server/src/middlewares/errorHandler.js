@@ -32,7 +32,17 @@ export function errorHandler(error, _request, response, _next) {
   }
 
   // Error mentah dapat memuat body, token, password, atau URL koneksi.
-  console.error('API request failed.');
+  const safeNames = new Set(['Error', 'TypeError', 'RangeError',
+    'PrismaClientKnownRequestError', 'PrismaClientUnknownRequestError',
+    'PrismaClientValidationError', 'PrismaClientInitializationError']);
+  const safeCode = /^(P\d{4}|[0-9A-Z]{5}|ECONNREFUSED|ECONNRESET|ETIMEDOUT)$/.test(error.code ?? '')
+    ? error.code : null;
+  console.error('API request failed.', {
+    method: _request.method,
+    route: _request.route?.path ?? null,
+    name: safeNames.has(error.name) ? error.name : 'Error',
+    code: safeCode,
+  });
   response.status(500).json({
     success: false,
     error: { code: 'INTERNAL_ERROR', message: 'Kesalahan server.' },

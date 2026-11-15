@@ -321,7 +321,7 @@ export default function KpApplicationTracker({
       {/* 3. Panel Catatan Reviewer (Bila Sudah Ada Review / Revisi)    */}
       {/* ============================================================ */}
       {reviewError && <p role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">{reviewError}</p>}
-      {reviewItems.length > 0 && (
+      {activeReviews.length > 0 && (
         <section
           aria-label="Catatan Reviewer Proposal"
           className="rounded-xl border border-line bg-white p-5 sm:p-6"
@@ -345,7 +345,7 @@ export default function KpApplicationTracker({
           )}
 
           <div className="mt-4 space-y-3">
-            {reviewItems.map((rev, idx) => (
+            {activeReviews.map((rev, idx) => (
               <div
                 key={rev.penugasan_id || idx}
                 className="rounded-lg border border-line bg-subtle/40 p-4 text-xs sm:text-sm"
@@ -361,8 +361,7 @@ export default function KpApplicationTracker({
                         : 'bg-amber-100 text-amber-800'
                     }`}
                   >
-                    Rekomendasi: {rev.status_penugasan === 'AKTIF'
-                      ? rev.hasil_versi_terkini : 'Penugasan nonaktif'}
+                    Rekomendasi: {rev.hasil_versi_terkini}
                   </span>
                 </div>
 

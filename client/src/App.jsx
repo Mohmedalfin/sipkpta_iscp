@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { useAuth } from './context/AuthContext.jsx';
 import AppShell from './layouts/AppShell.jsx';
@@ -16,9 +17,11 @@ import PlaceholderPage from './pages/PlaceholderPage.jsx';
 import LoginPage from './pages/LoginPage.jsx';
 import RoleUnavailablePage from './pages/RoleUnavailablePage.jsx';
 
+const ReviewKpPage = lazy(() => import('./pages/reviewer/ReviewKpPage.jsx'));
+
 function ProtectedRoute({ role, children }) {
   const { session, initializing } = useAuth();
-  if (initializing) return <div className="grid min-h-dvh place-items-center bg-canvas text-sm text-secondary" role="status">Memeriksa sesiâ€¦</div>;
+  if (initializing) return <div className="grid min-h-dvh place-items-center bg-canvas text-sm text-secondary" role="status">Memeriksa sesion</div>;
   if (!session?.user.activeRole) return <Navigate to="/login" replace />;
   if (role && session.user.activeRole !== role) return <Navigate to="/" replace />;
   return children;
@@ -104,7 +107,7 @@ export default function App() {
       <Route path="/reviewer" element={<ProtectedRoute role="REVIEWER"><AppShell /></ProtectedRoute>}>
         <Route index element={<Navigate to="/reviewer/dashboard" replace />} />
         <Route path="dashboard" element={<PlaceholderPage />} />
-        <Route path="review-kp" element={<PlaceholderPage />} />
+        <Route path="review-kp" element={<Suspense fallback={<div role="status" className="p-8 text-sm text-secondary">Memuat ruang review…</div>}><ReviewKpPage /></Suspense>} />
         <Route path="review-iscp" element={<PlaceholderPage />} />
         <Route path="review-ta" element={<PlaceholderPage />} />
         <Route path="riwayat" element={<PlaceholderPage />} />

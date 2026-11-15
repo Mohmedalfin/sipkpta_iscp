@@ -1,4 +1,5 @@
 import api from './api.js';
+import { apiErrorMessage } from './apiError.js';
 
 /**
  * Status penugasan reviewer KP
@@ -59,7 +60,6 @@ export function buildApplicationQueryParams(params = {}) {
 export function kaprodiReviewerKpErrorMessage(error, defaultMessage = 'Terjadi kesalahan pada penugasan reviewer KP.') {
   const errData = error?.response?.data?.error;
   const code = errData?.code;
-  const backendMessage = errData?.message;
 
   if (code === 'INVALID_REVIEWER') {
     return 'Dosen yang dipilih bukan kandidat Reviewer aktif pada Program Studi ini.';
@@ -91,13 +91,7 @@ export function kaprodiReviewerKpErrorMessage(error, defaultMessage = 'Terjadi k
   if (code === 'VALIDATION_ERROR') {
     return 'Parameter atau input penugasan tidak valid. Periksa kembali pilihan Anda.';
   }
-  if (backendMessage && typeof backendMessage === 'string') {
-    return backendMessage;
-  }
-  if (error?.message && typeof error.message === 'string' && !error.response) {
-    return 'Koneksi ke server gagal. Periksa jaringan Anda.';
-  }
-  return defaultMessage;
+  return apiErrorMessage(error, { fallback: defaultMessage });
 }
 
 /**

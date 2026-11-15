@@ -1,14 +1,9 @@
 import api from './api.js';
+import { apiErrorMessage } from './apiError.js';
+import { readListResponse } from './apiResponse.js';
 
 export function dosenErrorMessage(error, defaultMessage = 'Terjadi kesalahan pada data dosen.') {
-  const backendMessage = error?.response?.data?.error?.message;
-  if (backendMessage && typeof backendMessage === 'string') {
-    return backendMessage;
-  }
-  if (error?.message && typeof error.message === 'string' && !error.response) {
-    return 'Koneksi ke server gagal. Periksa jaringan Anda.';
-  }
-  return defaultMessage;
+  return apiErrorMessage(error, { fallback: defaultMessage });
 }
 
 /**
@@ -19,15 +14,14 @@ export async function fetchDosenList({
   page = 1,
   limit = 20,
   search = '',
-  signal,
-} = {}) {
+} = {}, { signal } = {}) {
   const params = {};
   if (page) params.page = page;
   if (limit) params.limit = limit;
   if (search && search.trim()) params.search = search.trim();
 
   const response = await api.get('/api/master/dosen', { params, signal });
-  return response.data;
+  return readListResponse(response);
 }
 
 /**

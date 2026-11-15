@@ -1,4 +1,5 @@
 import api from './api.js';
+import { apiErrorMessage } from './apiError.js';
 
 const root = '/api/admin-prodi/konfigurasi';
 const resources = Object.freeze({
@@ -16,8 +17,8 @@ function path(resource, id) {
   return `${root}/${name}${id === undefined ? '' : `/${encodeURIComponent(id)}`}`;
 }
 
-export async function listSettings(resource, params = {}) {
-  const { data } = await api.get(path(resource), { params });
+export async function listSettings(resource, params = {}, { signal } = {}) {
+  const { data } = await api.get(path(resource), { params, signal });
   return data.data;
 }
 
@@ -49,7 +50,9 @@ export async function getAvailability(tahap, jenis_proses) {
 }
 
 export function settingsError(error) {
-  return error?.response?.data?.error?.message ||
-    (error?.response?.status === 409 ? 'Konfigurasi bertentangan dengan data yang sudah ada.' :
-      'Permintaan belum dapat diproses. Periksa koneksi dan coba lagi.');
+  return apiErrorMessage(error, {
+    fallback: error?.response?.status === 409 ? 'Konfigurasi bertentangan dengan data yang sudah ada.' :
+      'Permintaan belum dapat diproses. Periksa koneksi dan coba lagi.',
+    networkMessage: 'Permintaan belum dapat diproses. Periksa koneksi dan coba lagi.',
+  });
 }

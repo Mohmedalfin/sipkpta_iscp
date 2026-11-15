@@ -1,4 +1,5 @@
 import api from './api.js';
+import { apiErrorMessage } from './apiError.js';
 
 export async function login(credentials) {
   const { data } = await api.post('/api/auth/login', credentials);
@@ -22,5 +23,5 @@ export async function logout() {
 export function authErrorMessage(error, fallback = 'Permintaan tidak dapat diproses.') {
   if (!error.response) return 'Server belum dapat dihubungi. Periksa koneksi lalu coba lagi.';
   if (error.response.status === 429) return 'Terlalu banyak percobaan. Tunggu sebentar lalu coba lagi.';
-  return error.response.data?.error?.message || fallback;
+  return apiErrorMessage(error, { fallback });
 }

@@ -6,6 +6,7 @@
  */
 
 import api from './api.js';
+import { apiErrorMessage } from './apiError.js';
 
 const BASE_PATH = '/api/pengajuan';
 
@@ -67,11 +68,8 @@ export function pengajuanKpErrorMessage(error, defaultMessage = 'Terjadi kesalah
     return backendMessage;
   }
 
-  if (error?.message && typeof error.message === 'string' && !error.response) {
-    return 'Koneksi ke server terputus. Pastikan jaringan internet Anda stabil.';
-  }
-
-  return defaultMessage;
+  return apiErrorMessage(error, { fallback: defaultMessage,
+    networkMessage: 'Koneksi ke server terputus. Pastikan jaringan internet Anda stabil.' });
 }
 
 /**
