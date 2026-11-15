@@ -11,3 +11,12 @@ Thumbs.db
 .tmp/
 tmp/
 .npm-cache/
+
+# Agent skills & configuration
+.agents/
+skills-lock.json
+
+# Product Requirements Documents (PRD) & dev prompt notes
+[pP][rR][dD]-*
+[pP][rR][dD]*
+promting.md
