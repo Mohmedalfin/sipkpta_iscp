@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import useReviewerKpList from '../../hooks/useReviewerKpList.js';
 import { useToast } from '../../context/ToastContext.jsx';
 import { IconExclamationCircle } from '../../components/common/Icons.jsx';
@@ -38,9 +39,12 @@ export default function ReviewKpPage() {
   });
 
   // Ambil metrik ringkasan keseluruhan penugasan reviewer aktif
-  const loadCounts = useCallback(async () => {
-    try {
-      const data = await fetchReviewerTasks({ limit: 100 });
+  const summary = useQuery({ queryKey: ['reviewer-kp-list', { limit: 100 }],
+    queryFn: ({ signal }) => fetchReviewerTasks({ limit: 100 }, { signal }),
+    refetchInterval: 120000, refetchIntervalInBackground: false });
+  useEffect(() => {
+      const data = summary.data;
+      if (!data) return;
       const allTasks = data?.items || [];
       const belumDireview = allTasks.filter((t) => t.review_saya === 'BELUM_DIREVIEW').length;
       const layak = allTasks.filter((t) => t.review_saya === 'LAYAK').length;
@@ -52,14 +56,7 @@ export default function ReviewKpPage() {
         tidakLayak,
         total: data?.pagination?.total ?? allTasks.length,
       });
-    } catch {
-      // Abaikan bila gagal memuat metrik agar tidak memblokir antrean tabel
-    }
-  }, []);
-
-  useEffect(() => {
-    loadCounts();
-  }, [loadCounts]);
+  }, [summary.data]);
 
   const selected = list.items.filter((item) => selection.includes(item.pengajuan_id));
   const ready = !list.loading && !list.error;
@@ -105,7 +102,6 @@ export default function ReviewKpPage() {
   const reload = () => {
     setSelection([]);
     list.reload();
-    loadCounts();
   };
 
   // Reset seluruh filter

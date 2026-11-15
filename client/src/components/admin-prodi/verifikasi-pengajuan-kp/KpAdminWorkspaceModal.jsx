@@ -1,4 +1,5 @@
 import { lazy, Suspense, useEffect, useRef, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   IconAcademicCap,
   IconArrowDownTray,
@@ -81,6 +82,7 @@ export default function KpAdminWorkspaceModal({
   onNextStudent,
 }) {
   const toast = useToast();
+  const queryClient = useQueryClient();
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -134,7 +136,8 @@ export default function KpAdminWorkspaceModal({
     setPreviewState({ url: null, title: '', loading: false, error: '' });
 
     try {
-      const data = await fetchAdminKpDetail(pengajuanId);
+      const data = await queryClient.fetchQuery({ queryKey: ['admin-kp-detail', pengajuanId],
+        queryFn: ({ signal }) => fetchAdminKpDetail(pengajuanId, { signal }), staleTime: 0 });
       if (requestId !== detailRequestIdRef.current) return;
       if (data?.id == null || String(data.id) !== String(pengajuanId)) {
         setError('Detail pengajuan tidak tersedia. Coba lagi.');

@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import useKpQueue from '../../hooks/useKpQueue.js';
+import { useEffect, useRef, useState } from 'react';
 import {
   IconClipboardCheck,
   IconExclamationCircle,
@@ -11,7 +12,6 @@ import {
 } from '../../components/admin-prodi/verifikasi-pengajuan-kp/index.js';
 import {
   adminPengajuanKpErrorMessage,
-  fetchAdminKpApplications,
 } from '../../services/adminPengajuanKp.js';
 import { useToast } from '../../context/ToastContext.jsx';
 
@@ -64,70 +64,31 @@ export default function VerifikasiPengajuanKpPage() {
   /**
    * Mengambil data antrean pengajuan KP dari backend
    */
-  const loadData = useCallback(async () => {
-    setLoading(true);
-    setError('');
-
-    try {
-      const res = await fetchAdminKpApplications({
-        page: pagination.page,
-        limit: pagination.limit,
-        search: activeSearch,
-        status_pengajuan: statusPengajuan,
-        status_berkas: statusBerkas,
-        status_nilai: statusNilai,
-      });
-
-      setItems(res?.items || []);
-      setPagination((prev) => ({
-        ...prev,
-        total: res?.pagination?.total || 0,
-        total_pages: res?.pagination?.total_pages || 1,
-      }));
-
-      // Ambil metrik ringkasan secara terpisah (background tanpa filter spesifik)
-      fetchAdminKpApplications({ page: 1, limit: 100 })
-        .then((allRes) => {
-          const allItems = allRes?.items || [];
-          const perluDiperiksa = allItems.filter(
-            (i) => i.status_pengajuan === 'DIAJUKAN' && (i.status_pemeriksaan_berkas === 'BELUM_DIPERIKSA' || i.status_pemeriksaan_akademik === 'BELUM_DIPERIKSA')
-          ).length;
-          const perluPerbaikan = allItems.filter(
-            (i) => i.status_pemeriksaan_berkas === 'BELUM_OK' || i.status_pemeriksaan_akademik === 'BELUM_OK'
-          ).length;
-          const siapPutusan = allItems.filter(
-            (i) => i.status_pengajuan === 'DIAJUKAN' && i.status_pemeriksaan_berkas === 'OK_LENGKAP' && i.status_pemeriksaan_akademik === 'OK_LENGKAP'
-          ).length;
-          const sudahAcc = allItems.filter((i) => i.status_pengajuan === 'ACC').length;
-
-          setCounts({
-            perluDiperiksa,
-            perluPerbaikan,
-            siapPutusan,
-            sudahAcc,
-          });
-        })
-        .catch(() => {});
-    } catch (err) {
-      const msg = adminPengajuanKpErrorMessage(err, 'Gagal memuat daftar pengajuan KP.');
-      setError(msg);
-      toast.error(msg);
-    } finally {
-      setLoading(false);
-    }
-  }, [
-    pagination.page,
-    pagination.limit,
-    activeSearch,
-    statusPengajuan,
-    statusBerkas,
-    statusNilai,
-    toast,
-  ]);
-
+  const queue = useKpQueue('admin', { page: pagination.page, limit: pagination.limit, search: activeSearch, status_pengajuan: statusPengajuan, status_berkas: statusBerkas, status_nilai: statusNilai });
+  const loadData = queue.reload;
   useEffect(() => {
-    loadData();
-  }, [loadData]);
+    if (queue.error) toast.error(adminPengajuanKpErrorMessage(queue.error));
+  }, [queue.error, toast]);
+  useEffect(() => {
+    setLoading(queue.isPending || queue.isPlaceholderData);
+    setError(queue.error ? adminPengajuanKpErrorMessage(queue.error) : '');
+    if (queue.data) {
+      setItems(queue.data.items || []);
+      setPagination((old) => ({ ...old, total: queue.data.pagination?.total || 0,
+        total_pages: queue.data.pagination?.total_pages || 1 }));
+    }
+  }, [queue.data, queue.error, queue.isPending, queue.isPlaceholderData]);
+  useEffect(() => {
+    if (!queue.summary) return;
+    const rows = queue.summary.items || [];
+    setCounts({
+        perluDiperiksa: rows.filter((i) => i.status_pengajuan === 'DIAJUKAN' && (i.status_pemeriksaan_berkas === 'BELUM_DIPERIKSA' || i.status_pemeriksaan_akademik === 'BELUM_DIPERIKSA')).length,
+        perluPerbaikan: rows.filter((i) => i.status_pemeriksaan_berkas === 'BELUM_OK' || i.status_pemeriksaan_akademik === 'BELUM_OK').length,
+        siapPutusan: rows.filter((i) => i.status_pengajuan === 'DIAJUKAN' && i.status_pemeriksaan_berkas === 'OK_LENGKAP' && i.status_pemeriksaan_akademik === 'OK_LENGKAP').length,
+        sudahAcc: rows.filter((i) => i.status_pengajuan === 'ACC').length,
+    });
+  }, [queue.summary]);
+  useEffect(() => () => clearTimeout(searchTimeoutRef.current), []);
 
   // Handler klik kartu metrik cepat
   const handleSelectQuickFilter = (filterId) => {

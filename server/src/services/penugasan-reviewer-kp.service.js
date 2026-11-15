@@ -1,6 +1,8 @@
+import { createNotifikasi } from './notifikasi.service.js';
 import { authorizedProdiId } from './mahasiswa.service.js';
 import { readPrivateDocument } from './data-diri.service.js';
 import { serializable } from './pengajuan-kp.service.js';
+import { afterKpChange } from './realtime.service.js';
 
 export class PenugasanReviewerKpError extends Error {
   constructor(status, code, message, details) {
@@ -242,6 +244,13 @@ async function createAssignments(tx, applicationIds, dosenIds, actorUserId, prod
         pengajuan_id: id, dosen_id: dosenId, jenis_penugasan: JENIS,
         sumber_penugasan: SUMBER, ditetapkan_oleh_user_id: actorUserId,
       }, select: { id: true } });
+      const reviewer = await tx.dosen.findUnique({ where: { id: dosenId },
+        select: { user_id: true } });
+      await createNotifikasi(tx, { kategori: 'PENUGASAN_REVIEWER_KP',
+        judul: 'Penugasan Reviewer KP', pesan: 'Anda mendapat penugasan review proposal KP.',
+        route: '/reviewer/review-kp', actorUserId,
+        recipientIds: [reviewer.user_id],
+      });
       results.push({ pengajuan_id: id, dosen_id: dosenId,
         penugasan_id: created.id, result: 'created' });
     }
@@ -251,14 +260,38 @@ async function createAssignments(tx, applicationIds, dosenIds, actorUserId, prod
     items: results };
 }
 
-export async function assignKpReviewers(prisma, id, dosenIds, actorUserId) {
+export function assignKpReviewers(prisma, id, dosenIds, actorUserId) {
+  return afterKpChange(prisma, 'pengajuan.assignment.updated',
+    () => assignReviewers(prisma, id, dosenIds, actorUserId), (result) => result.created ? [id] : []);
+}
+
+export function assignKpReviewerBulk(prisma, ids, dosenId, actorUserId) {
+  return afterKpChange(prisma, 'pengajuan.assignment.updated',
+    () => assignBulk(prisma, ids, dosenId, actorUserId),
+    (result) => result.items.filter((item) => item.result === 'created').map((item) => item.pengajuan_id));
+}
+
+export function deactivateKpReviewer(prisma, id, reason, actorUserId) {
+  return afterKpChange(prisma, 'pengajuan.assignment.updated',
+    () => deactivateReviewer(prisma, id, reason, actorUserId), async () => {
+      const row = await prisma.penugasanDosen.findUnique({ where: { id }, select: { pengajuan_id: true } });
+      return row ? [row.pengajuan_id] : [];
+    });
+}
+
+export function replaceKpReviewer(prisma, id, newDosenId, reason, actorUserId) {
+  return afterKpChange(prisma, 'pengajuan.assignment.updated',
+    () => replaceReviewer(prisma, id, newDosenId, reason, actorUserId), (result) => [result.pengajuan_id]);
+}
+
+async function assignReviewers(prisma, id, dosenIds, actorUserId) {
   return serializable(prisma, async (tx) => {
     const prodiId = await scope(tx);
     return createAssignments(tx, [id], dosenIds, actorUserId, prodiId);
   });
 }
 
-export async function assignKpReviewerBulk(prisma, ids, dosenId, actorUserId) {
+async function assignBulk(prisma, ids, dosenId, actorUserId) {
   return serializable(prisma, async (tx) => {
     const prodiId = await scope(tx);
     return createAssignments(tx, [...ids].sort((a, b) => a - b), [dosenId], actorUserId, prodiId);
@@ -287,7 +320,7 @@ async function endAssignment(tx, row, reason, actorUserId) {
   } });
 }
 
-export async function deactivateKpReviewer(prisma, id, reason, actorUserId) {
+async function deactivateReviewer(prisma, id, reason, actorUserId) {
   return serializable(prisma, async (tx) => {
     const prodiId = await scope(tx);
     const initial = await activeAssignment(tx, id, prodiId);
@@ -299,7 +332,7 @@ export async function deactivateKpReviewer(prisma, id, reason, actorUserId) {
   });
 }
 
-export async function replaceKpReviewer(prisma, id, newDosenId, reason, actorUserId) {
+async function replaceReviewer(prisma, id, newDosenId, reason, actorUserId) {
   return serializable(prisma, async (tx) => {
     const prodiId = await scope(tx);
     const initial = await activeAssignment(tx, id, prodiId);
@@ -328,6 +361,12 @@ export async function replaceKpReviewer(prisma, id, newDosenId, reason, actorUse
       data_sebelum: { penugasan_id: row.id, dosen_id: row.dosen_id },
       data_sesudah: { penugasan_id: created.id, dosen_id: newDosenId }, keterangan: reason,
     } });
+    const reviewer = await tx.dosen.findUnique({ where: { id: newDosenId },
+      select: { user_id: true } });
+    await createNotifikasi(tx, { kategori: 'PENUGASAN_REVIEWER_KP',
+      judul: 'Penugasan Reviewer KP', pesan: 'Anda mendapat penugasan review proposal KP.',
+      route: '/reviewer/review-kp', actorUserId, recipientIds: [reviewer.user_id],
+    });
     return { penugasan_lama_id: row.id, penugasan_baru_id: created.id,
       pengajuan_id: row.pengajuan_id, dosen_id_baru: newDosenId };
   });

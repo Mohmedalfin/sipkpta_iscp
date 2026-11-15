@@ -279,6 +279,15 @@ Gunakan Postman untuk pengujian manual/automated API bila relevan. Periksa dulu 
 | Pemeriksaan kelayakan akademik | Administrasi pengajuan reguler/awal oleh Admin Prodi dan ACC akhir oleh Kaprodi sudah final; pelaku pemeriksaan akademik belum ditetapkan. | Jangan mencampur pemeriksaan akademik dengan administrasi, review, atau ACC akhir. Perpanjangan diperiksa Kaprodi. |
 | Seminar penuh | Baru jadwal/informasi minimum; konsep masih provisional. | Tunda detail penguji, penilaian, hasil, dan migrasi besar sampai diputuskan. |
 
+## Keputusan pembaruan data realtime
+
+Keputusan 16 November 2026: REST API, SSE, dan cache client dengan invalidasi terarah.
+Backend awal memakai event bus dalam memori pada satu proses. Redis ditunda sampai
+dibutuhkan beberapa proses/instance. Kontrak keamanan, resinkronisasi, dan tahapan
+implementasi ada di [Arsitektur realtime](realtime-architecture.md).
+Tahap pertama runtime mencakup cache hasil review mahasiswa dan SSE hasil review;
+cakupan serta batas verifikasinya dicatat pada dokumen tersebut.
+
 ## 14. Checklist Codex sebelum mengimplementasikan fitur
 
 - [ ] Scope fitur dan prioritas semester sudah jelas; tidak membangun seluruh sistem sekaligus.

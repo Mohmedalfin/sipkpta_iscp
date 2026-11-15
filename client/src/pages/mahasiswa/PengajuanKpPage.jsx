@@ -1,4 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import useKpReviews from '../../hooks/useKpReviews.js';
+import useLiveKpDetail from '../../hooks/useLiveKpDetail.js';
 import { useToast } from '../../context/ToastContext.jsx';
 import ConfirmDialog from '../../components/common/ConfirmDialog.jsx';
 import {
@@ -26,7 +29,6 @@ import {
   createKpDraft,
   getKpApplicationDetail,
   getKpFormOptions,
-  getKpReviews,
   listAllOwnKpApplications,
   pengajuanKpErrorMessage,
   submitKpApplication,
@@ -52,6 +54,7 @@ const INITIAL_FORM_STATE = Object.freeze({
  */
 export default function PengajuanKpPage() {
   const toast = useToast();
+  const queryClient = useQueryClient();
 
   // State Utama Halaman
   const [loading, setLoading] = useState(true);
@@ -62,8 +65,8 @@ export default function PengajuanKpPage() {
 
   // Detail Pengajuan Aktif Mahasiswa (bila ada)
   const [activePengajuan, setActivePengajuan] = useState(null);
-  const [reviews, setReviews] = useState(null);
-  const [reviewError, setReviewError] = useState('');
+  useLiveKpDetail(activePengajuan, setActivePengajuan);
+  const { reviews, reviewError } = useKpReviews(activePengajuan);
   const [historyItems, setHistoryItems] = useState([]);
   const [selectedHistoryId, setSelectedHistoryId] = useState(null);
   const loadSequence = useRef(0);
@@ -87,8 +90,7 @@ export default function PengajuanKpPage() {
     setError(null);
     setOpsiForm(null);
     setActivePengajuan(null);
-    setReviews(null);
-    setReviewError('');
+    void queryClient.invalidateQueries({ queryKey: ['kp-reviews'], refetchType: 'none' });
 
     try {
       const [applicationsResult, optionsResult] = await Promise.allSettled([
@@ -119,6 +121,7 @@ export default function PengajuanKpPage() {
       if (selected) {
         const detail = await getKpApplicationDetail(selected.id);
         if (sequence !== loadSequence.current) return;
+        queryClient.setQueryData(['kp-detail', detail.id], detail);
         setActivePengajuan(detail);
 
         if (detail.status_pengajuan === KP_STATUS_PENGAJUAN.DRAFT &&
@@ -135,15 +138,6 @@ export default function PengajuanKpPage() {
             daftar_mk_nilai_de: detail.daftar_mk_nilai_de || '',
             sudah_bayar_spp_variabel: detail.sudah_bayar_spp_variabel,
           });
-        } else if (detail.status_pengajuan !== KP_STATUS_PENGAJUAN.DRAFT) {
-          try {
-            const reviewData = await getKpReviews(detail.id);
-            if (sequence !== loadSequence.current) return;
-            setReviews(reviewData);
-          } catch (reviewFailure) {
-            if (sequence !== loadSequence.current) return;
-            setReviewError(pengajuanKpErrorMessage(reviewFailure, 'Hasil review belum dapat dimuat.'));
-          }
         }
       } else {
         setFormData(INITIAL_FORM_STATE);

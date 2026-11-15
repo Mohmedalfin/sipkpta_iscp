@@ -13,6 +13,8 @@ import { createPengajuanKpRoutes } from './routes/pengajuan-kp.routes.js';
 import { createAdminPengajuanKpRoutes } from './routes/admin-pengajuan-kp.routes.js';
 import { createPenugasanReviewerKpRoutes } from './routes/penugasan-reviewer-kp.routes.js';
 import { createReviewProposalKpRoutes } from './routes/review-proposal-kp.routes.js';
+import { createRealtimeRoutes } from './routes/realtime.routes.js';
+import { createNotifikasiRoutes } from './routes/notifikasi.routes.js';
 import { createFinalisasiKpRoutes } from './routes/finalisasi-kp.routes.js';
 import { createBimbinganMahasiswaRoutes } from './routes/bimbingan-mahasiswa.routes.js';
 import { createBimbinganPembimbingRoutes } from './routes/bimbingan-pembimbing.routes.js';
@@ -76,6 +78,8 @@ export function createApp({ prisma = getPrisma(), mailService = createMailServic
   app.use('/api/kaprodi', createPenugasanReviewerKpRoutes({ prisma }));
   app.use('/api/kaprodi', createFinalisasiKpRoutes({ prisma }));
   app.use('/api/reviewer', createReviewProposalKpRoutes({ prisma }));
+  app.use('/api/realtime', createRealtimeRoutes({ prisma }));
+  app.use('/api/notifikasi', createNotifikasiRoutes({ prisma }));
   app.use(notFound);
   app.use(errorHandler);
 

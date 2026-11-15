@@ -142,8 +142,8 @@ export async function listAllOwnKpApplications() {
  * @param {number|string} id - ID Pengajuan
  * @returns {Promise<object>} Objek detail pengajuan
  */
-export async function getKpApplicationDetail(id) {
-  const response = await api.get(`${BASE_PATH}/${id}`);
+export async function getKpApplicationDetail(id, { signal } = {}) {
+  const response = await api.get(`${BASE_PATH}/${id}`, { signal });
   return response.data.data;
 }
 
@@ -241,8 +241,8 @@ export async function sendKpRevision(id, kategori) {
  * @param {number|string} id - ID Pengajuan
  * @returns {Promise<object>} Catatan review proposal
  */
-export async function getKpReviews(id) {
-  const response = await api.get(`${BASE_PATH}/${id}/review`);
+export async function getKpReviews(id, { signal } = {}) {
+  const response = await api.get(`${BASE_PATH}/${id}/review`, { signal });
   return response.data.data;
 }
 

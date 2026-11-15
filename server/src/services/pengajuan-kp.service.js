@@ -1,4 +1,7 @@
+import { withNotificationPublication } from './notification-publication.service.js';
+import { createNotifikasi, staffRecipients } from './notifikasi.service.js';
 import { createHash, randomUUID } from 'node:crypto';
+import { afterKpChange } from './realtime.service.js';
 import {
   DataDiriError,
   REQUIRED_DOCUMENT_CODES,
@@ -41,7 +44,8 @@ function translatedStorageError(error) {
 export async function serializable(prisma, operation) {
   for (let attempt = 1; attempt <= MAX_TRANSACTION_ATTEMPTS; attempt += 1) {
     try {
-      return await prisma.$transaction(operation, { isolationLevel: 'Serializable' });
+      return await withNotificationPublication(() =>
+        prisma.$transaction(operation, { isolationLevel: 'Serializable' }));
     } catch (error) {
       if (error?.code !== 'P2034') throw error;
       if (attempt === MAX_TRANSACTION_ATTEMPTS) {
@@ -615,7 +619,12 @@ export async function reviseOwnKpApplication(prisma, userId, id, input) {
   });
 }
 
-export async function sendOwnKpRevision(prisma, userId, id, categories) {
+export function sendOwnKpRevision(prisma, userId, id, categories) {
+  return afterKpChange(prisma, 'pengajuan.administration.updated',
+    () => sendRevision(prisma, userId, id, categories), [id]);
+}
+
+async function sendRevision(prisma, userId, id, categories) {
   return serializable(prisma, async (tx) => {
     await tx.$queryRaw`SELECT pg_advisory_xact_lock(20261108, ${id}::int) IS NULL AS locked`;
     const student = await ownStudent(tx, userId);
@@ -841,7 +850,12 @@ function requireSubmitDocuments(application, requirements) {
   }
 }
 
-export async function submitKpApplication(prisma, userId, id, setujuPernyataan) {
+export function submitKpApplication(prisma, userId, id, setujuPernyataan) {
+  return afterKpChange(prisma, 'pengajuan.administration.updated',
+    () => submitApplication(prisma, userId, id, setujuPernyataan), [id]);
+}
+
+async function submitApplication(prisma, userId, id, setujuPernyataan) {
   if (setujuPernyataan !== true) {
     throw new PengajuanKpError(400, 'STATEMENT_REQUIRED', 'Pernyataan kebenaran data wajib disetujui.');
   }
@@ -983,6 +997,17 @@ export async function submitKpApplication(prisma, userId, id, setujuPernyataan) 
         catatan: 'Pengajuan dikirim oleh mahasiswa.',
       },
     });
+    const [admins, kaprodis] = await Promise.all([
+      staffRecipients(tx, lockedStudent.program_studi_id, 'ADMIN_PRODI'),
+      staffRecipients(tx, lockedStudent.program_studi_id, 'KAPRODI'),
+    ]);
+    // Separate routes keep each role's notification actionable.
+    await createNotifikasi(tx, { kategori: 'PENGAJUAN_KP', judul: 'Pengajuan KP baru',
+      pesan: 'Pengajuan KP baru siap diperiksa.', route: '/admin-prodi/verifikasi-pengajuan-kp',
+      actorUserId: userId, recipientIds: admins });
+    await createNotifikasi(tx, { kategori: 'PENGAJUAN_KP', judul: 'Pengajuan KP baru',
+      pesan: 'Pengajuan KP baru tersedia untuk penugasan Reviewer.',
+      route: '/kaprodi/kp/penugasan-reviewer', actorUserId: userId, recipientIds: kaprodis.filter((id) => !admins.includes(id)) });
     return { ...updated, idempotent: false };
   });
 }

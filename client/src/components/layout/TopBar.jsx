@@ -2,7 +2,6 @@ import { useRef, useState } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import {
   IconAcademicCap,
-  IconBell,
   IconCheckCircle,
   IconChevronRight,
   IconHome,
@@ -11,6 +10,7 @@ import {
   IconSpinner,
 } from '../common/Icons.jsx';
 import { useClickOutside } from '../../hooks/useClickOutside.js';
+import NotificationBell from './NotificationBell.jsx';
 import { getBreadcrumb } from '../../config/navigation.js';
 import { getRoleMeta } from '../auth/RolePicker.jsx';
 import { useAuth } from '../../context/AuthContext.jsx';
@@ -29,15 +29,12 @@ export default function TopBar({
   const toast = useToast();
   const navigate = useNavigate();
 
-  const [notificationOpen, setNotificationOpen] = useState(false);
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
   const [switchingRole, setSwitchingRole] = useState(null);
 
-  const notificationRef = useRef(null);
   const profileDropdownRef = useRef(null);
 
   // Accessible click-outside handlers
-  useClickOutside(notificationRef, () => setNotificationOpen(false));
   useClickOutside(profileDropdownRef, () => setProfileDropdownOpen(false));
 
   const activeRole = session?.user?.activeRole || 'MAHASISWA';
@@ -148,95 +145,7 @@ export default function TopBar({
 
       {/* Header Right: Notification Bell & Profile Dropdown */}
       <div className="flex items-center gap-2.5 sm:gap-3">
-        {/* Notification Bell Dropdown */}
-        <div ref={notificationRef} className="relative">
-          <button
-            type="button"
-            onClick={() => setNotificationOpen((prev) => !prev)}
-            className="relative size-9 flex items-center justify-center rounded-lg text-white hover:bg-white/10 transition-colors cursor-pointer"
-            aria-label="Lihat notifikasi akademik"
-            aria-expanded={notificationOpen}
-          >
-            <IconBell className="size-5" />
-            {/* Red Badge Counter (3 unread) */}
-            <span className="absolute top-1 right-1 flex size-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white shadow-2xs">
-              3
-            </span>
-          </button>
-
-          {/* Notification Popover Panel */}
-          {notificationOpen && (
-            <div className="absolute right-0 mt-2 w-80 rounded-xl border border-line bg-white p-3 shadow-lg z-50 text-ink">
-              <div className="flex items-center justify-between pb-2 border-b border-line">
-                <span className="text-xs font-bold text-ink">Notifikasi Akademik</span>
-                <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-bold text-brand">3 Baru</span>
-              </div>
-
-              <div className="mt-2 space-y-2 text-xs">
-                {activeRole === 'ADMIN_PRODI' ? (
-                  <>
-                    <div className="rounded-lg p-2 bg-blue-50/50 hover:bg-blue-50 transition-colors">
-                      <p className="font-semibold text-ink">Pengajuan KP Baru</p>
-                      <p className="mt-0.5 text-[11px] text-muted">Ahmad (522001001) telah mengajukan proposal Kerja Praktik.</p>
-                      <span className="mt-1 block text-[9px] text-secondary">Baru saja</span>
-                    </div>
-                    <div className="rounded-lg p-2 hover:bg-subtle transition-colors">
-                      <p className="font-semibold text-ink">Pembaruan Master Mahasiswa</p>
-                      <p className="mt-0.5 text-[11px] text-muted">Data angkatan baru siap ditinjau dan dikelola.</p>
-                      <span className="mt-1 block text-[9px] text-secondary">Kemarin</span>
-                    </div>
-                  </>
-                ) : activeRole === 'KAPRODI' ? (
-                  <>
-                    <div className="rounded-lg p-2 bg-blue-50/50 hover:bg-blue-50 transition-colors">
-                      <p className="font-semibold text-ink">Proposal Siap Penetapan Pembimbing</p>
-                      <p className="mt-0.5 text-[11px] text-muted">Proposal mahasiswa telah disetujui reviewer dan siap ditetapkan pembimbing.</p>
-                      <span className="mt-1 block text-[9px] text-secondary">Baru saja</span>
-                    </div>
-                    <div className="rounded-lg p-2 hover:bg-subtle transition-colors">
-                      <p className="font-semibold text-ink">Pengajuan KP Menunggu Reviewer</p>
-                      <p className="mt-0.5 text-[11px] text-muted">Pengajuan baru telah lolos verifikasi berkas oleh Admin Prodi.</p>
-                      <span className="mt-1 block text-[9px] text-secondary">Kemarin</span>
-                    </div>
-                  </>
-                ) : activeRole === 'REVIEWER' ? (
-                  <>
-                    <div className="rounded-lg p-2 bg-blue-50/50 hover:bg-blue-50 transition-colors">
-                      <p className="font-semibold text-ink">Penugasan Review Proposal Baru</p>
-                      <p className="mt-0.5 text-[11px] text-muted">Kaprodi menugaskan Anda untuk mereview proposal Kerja Praktik.</p>
-                      <span className="mt-1 block text-[9px] text-secondary">1 jam yang lalu</span>
-                    </div>
-                  </>
-                ) : activeRole === 'PEMBIMBING' ? (
-                  <>
-                    <div className="rounded-lg p-2 bg-blue-50/50 hover:bg-blue-50 transition-colors">
-                      <p className="font-semibold text-ink">Penugasan Mahasiswa Bimbingan</p>
-                      <p className="mt-0.5 text-[11px] text-muted">Kaprodi menetapkan Anda sebagai Dosen Pembimbing KP mahasiswa.</p>
-                      <span className="mt-1 block text-[9px] text-secondary">2 jam yang lalu</span>
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <div className="rounded-lg p-2 bg-blue-50/50 hover:bg-blue-50 transition-colors">
-                      <p className="font-semibold text-ink">Status Pengajuan KP</p>
-                      <p className="mt-0.5 text-[11px] text-muted">Pengajuan Kerja Praktik Anda sedang dalam proses pemeriksaan.</p>
-                      <span className="mt-1 block text-[9px] text-secondary">1 jam yang lalu</span>
-                    </div>
-                  </>
-                )}
-              </div>
-              <div className="mt-2.5 pt-2 border-t border-line text-center">
-                <button
-                  type="button"
-                  onClick={() => setNotificationOpen(false)}
-                  className="text-[11px] font-medium text-brand hover:underline cursor-pointer"
-                >
-                  Tandai semua telah dibaca
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
+        <NotificationBell session={session} />
 
         <div className="h-5 w-px bg-white/25" aria-hidden="true" />
 

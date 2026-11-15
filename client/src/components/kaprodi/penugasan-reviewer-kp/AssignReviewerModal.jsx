@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   IconArrowDownTray,
   IconArrowLeft,
@@ -94,6 +95,7 @@ export default function AssignReviewerModal({
   onNextStudent,
 }) {
   const toast = useToast();
+  const queryClient = useQueryClient();
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -142,7 +144,8 @@ export default function AssignReviewerModal({
 
     try {
       const [detailData, candidateData] = await Promise.all([
-        fetchKaprodiKpDetail(pengajuanId),
+        queryClient.fetchQuery({ queryKey: ['kaprodi-kp-detail', pengajuanId],
+          queryFn: ({ signal }) => fetchKaprodiKpDetail(pengajuanId, { signal }), staleTime: 0 }),
         fetchReviewerCandidates({ limit: 100, pengajuan_id: pengajuanId }),
       ]);
       if (requestId !== detailRequestIdRef.current) return;
@@ -164,7 +167,7 @@ export default function AssignReviewerModal({
     } finally {
       if (requestId === detailRequestIdRef.current) setLoading(false);
     }
-  }, [pengajuanId, toast]);
+  }, [pengajuanId, toast, queryClient]);
 
   useEffect(() => {
     if (open && pengajuanId) {

@@ -99,9 +99,9 @@ export function kaprodiReviewerKpErrorMessage(error, defaultMessage = 'Terjadi k
  * @param {object} params
  * @returns {Promise<{ items: Array, pagination: object }>}
  */
-export async function fetchKaprodiKpApplications(params = {}) {
+export async function fetchKaprodiKpApplications(params = {}, { signal } = {}) {
   const cleanParams = buildApplicationQueryParams(params);
-  const response = await api.get('/api/kaprodi/pengajuan', { params: cleanParams });
+  const response = await api.get('/api/kaprodi/pengajuan', { params: cleanParams, signal });
   return (
     response.data?.data || {
       items: [],
@@ -115,8 +115,8 @@ export async function fetchKaprodiKpApplications(params = {}) {
  * @param {number|string} id
  * @returns {Promise<object>}
  */
-export async function fetchKaprodiKpDetail(id) {
-  const response = await api.get(`/api/kaprodi/pengajuan/${id}`);
+export async function fetchKaprodiKpDetail(id, { signal } = {}) {
+  const response = await api.get(`/api/kaprodi/pengajuan/${id}`, { signal });
   return response.data?.data;
 }
 

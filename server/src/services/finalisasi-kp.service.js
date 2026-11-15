@@ -1,3 +1,4 @@
+import { createNotifikasi, studentRecipient } from './notifikasi.service.js';
 import { authorizedProdiId } from './mahasiswa.service.js';
 import { serializable } from './pengajuan-kp.service.js';
 
@@ -203,6 +204,12 @@ export async function assignPembimbingKpBulk(prisma, actorUserId, assignments) {
         sumber_penugasan: 'KAPRODI', status_penugasan: 'AKTIF',
         ditetapkan_oleh_user_id: actorUserId, mulai_at: new Date(),
       }, select: { id: true } });
+      await createNotifikasi(tx, { kategori: 'KEPUTUSAN_KP',
+        judul: 'Pembimbing KP ditetapkan',
+        pesan: 'Kaprodi telah menetapkan Dosen Pembimbing KP Anda.',
+        route: '/mahasiswa/pengajuan/kp', actorUserId,
+        recipientIds: [await studentRecipient(tx, id)],
+      });
       results.push({ pengajuan_id: id, dosen_id: dosenId,
         penugasan_id: created.id, result: 'created' });
     }
@@ -266,6 +273,12 @@ export async function replacePembimbingKp(prisma, actorUserId, id, newDosenId, r
       aksi: 'KP_PEMBIMBING_GANTI', entitas: 'PenugasanDosen', entitas_id: BigInt(created.id),
       data_sebelum: { penugasan_id: old.id, dosen_id: old.dosen_id },
       data_sesudah: { penugasan_id: created.id, dosen_id: newDosenId }, keterangan: reason } });
+    await createNotifikasi(tx, { kategori: 'KEPUTUSAN_KP',
+      judul: 'Pembimbing KP diperbarui',
+      pesan: 'Kaprodi telah mengganti Dosen Pembimbing KP Anda.',
+      route: '/mahasiswa/pengajuan/kp', actorUserId,
+      recipientIds: [await studentRecipient(tx, id)],
+    });
     return { pengajuan_id: id, penugasan_lama_id: old.id,
       penugasan_baru_id: created.id, dosen_id_baru: newDosenId };
   });

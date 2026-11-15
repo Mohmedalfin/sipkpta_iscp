@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import useKpQueue from '../../hooks/useKpQueue.js';
+import { useEffect, useRef, useState } from 'react';
 import {
   IconExclamationCircle,
 } from '../../components/common/Icons.jsx';
@@ -10,7 +11,6 @@ import {
   ReviewerKpToolbar,
 } from '../../components/kaprodi/penugasan-reviewer-kp/index.js';
 import {
-  fetchKaprodiKpApplications,
   kaprodiReviewerKpErrorMessage,
 } from '../../services/kaprodiReviewerKp.js';
 import { useToast } from '../../context/ToastContext.jsx';
@@ -74,71 +74,31 @@ export default function PenugasanReviewerKpPage() {
   /**
    * Mengambil data antrean pengajuan KP dari backend
    */
-  const loadData = useCallback(async () => {
-    setLoading(true);
-    setError('');
-
-    try {
-      const res = await fetchKaprodiKpApplications({
-        page: pagination.page,
-        limit: pagination.limit,
-        q: activeSearch,
-        status_penugasan_reviewer: statusPenugasan,
-        status_pengajuan: statusPengajuan,
-        sort,
-      });
-
-      setItems(res?.items || []);
-      setPagination((prev) => ({
-        ...prev,
-        total: res?.pagination?.total || 0,
-        total_pages: res?.pagination?.total_pages || 1,
-      }));
-
-      // Ambil ringkasan metrik secara terpisah tanpa filter tabel aktif
-      fetchKaprodiKpApplications({ page: 1, limit: 100 })
-        .then((allRes) => {
-          const allItems = allRes?.items || [];
-          const total = allRes?.pagination?.total || allItems.length;
-          const belumAda = allItems.filter(
-            (i) => !i.jumlah_reviewer_aktif || i.jumlah_reviewer_aktif === 0
-          ).length;
-          const sudahAda = allItems.filter((i) => i.jumlah_reviewer_aktif > 0).length;
-          const sudahAcc = allItems.filter(
-            (i) => i.status_pemeriksaan_berkas === 'OK_LENGKAP' || i.status_pengajuan === 'ACC'
-          ).length;
-
-          setCounts({
-            belumAda,
-            sudahAda,
-            sudahAcc,
-            total,
-          });
-        })
-        .catch(() => {});
-    } catch (err) {
-      const message = kaprodiReviewerKpErrorMessage(
-        err,
-        'Gagal memuat antrean penugasan reviewer KP. Silakan coba lagi.'
-      );
-      setError(message);
-      toast.error(message);
-    } finally {
-      setLoading(false);
-    }
-  }, [
-    pagination.page,
-    pagination.limit,
-    activeSearch,
-    statusPenugasan,
-    statusPengajuan,
-    sort,
-    toast,
-  ]);
-
+  const queue = useKpQueue('kaprodi', { page: pagination.page, limit: pagination.limit, q: activeSearch, status_penugasan_reviewer: statusPenugasan, status_pengajuan: statusPengajuan, sort });
+  const loadData = queue.reload;
   useEffect(() => {
-    loadData();
-  }, [loadData]);
+    if (queue.error) toast.error(kaprodiReviewerKpErrorMessage(queue.error));
+  }, [queue.error, toast]);
+  useEffect(() => {
+    setLoading(queue.isPending || queue.isPlaceholderData);
+    setError(queue.error ? kaprodiReviewerKpErrorMessage(queue.error) : '');
+    if (queue.data) {
+      setItems(queue.data.items || []);
+      setPagination((old) => ({ ...old, total: queue.data.pagination?.total || 0,
+        total_pages: queue.data.pagination?.total_pages || 1 }));
+    }
+  }, [queue.data, queue.error, queue.isPending, queue.isPlaceholderData]);
+  useEffect(() => {
+    if (!queue.summary) return;
+    const rows = queue.summary.items || [];
+    setCounts({
+        belumAda: rows.filter((i) => !i.jumlah_reviewer_aktif).length,
+        sudahAda: rows.filter((i) => i.jumlah_reviewer_aktif > 0).length,
+        sudahAcc: rows.filter((i) => i.status_pemeriksaan_berkas === 'OK_LENGKAP' || i.status_pengajuan === 'ACC').length,
+        total: queue.summary.pagination?.total || rows.length,
+    });
+  }, [queue.summary]);
+  useEffect(() => () => clearTimeout(searchTimeoutRef.current), []);
 
   // Handler Ganti Halaman
   const handlePageChange = (newPage) => {

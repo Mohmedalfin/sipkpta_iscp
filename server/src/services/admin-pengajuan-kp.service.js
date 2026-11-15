@@ -1,4 +1,6 @@
+import { createNotifikasi, studentRecipient } from './notifikasi.service.js';
 import { createHash } from 'node:crypto';
+import { afterKpChange } from './realtime.service.js';
 import { authorizedProdiId } from './mahasiswa.service.js';
 import { readPrivateDocument, REQUIRED_DOCUMENT_CODES } from './data-diri.service.js';
 import { serializable } from './pengajuan-kp.service.js';
@@ -193,7 +195,19 @@ async function history(prisma, item, category, before, after, actorUserId, note,
   } });
 }
 
-export async function examineAdminKpCategory(prisma, { id, category, status, note, expectedSnapshot, actorUserId }) {
+export function examineAdminKpCategory(prisma, input) {
+  return afterKpChange(prisma, 'pengajuan.administration.updated', () => examineCategory(prisma, input), [input.id]);
+}
+
+export function decideAdminKpApplication(prisma, input) {
+  return afterKpChange(prisma, 'pengajuan.administration.updated', () => decideApplication(prisma, input), [input.id]);
+}
+
+export function approveAllAdminKp(prisma, input) {
+  return afterKpChange(prisma, 'pengajuan.administration.updated', () => approveAll(prisma, input), [input.id]);
+}
+
+async function examineCategory(prisma, { id, category, status, note, expectedSnapshot, actorUserId }) {
   return serializable(prisma, async (tx) => {
     const item = await locked(tx, id, expectedSnapshot);
     const berkas = category === 'BERKAS';
@@ -211,6 +225,12 @@ export async function examineAdminKpCategory(prisma, { id, category, status, not
       : { status_pemeriksaan_akademik: status, catatan_pemeriksaan_akademik: note,
         akademik_diperiksa_oleh_user_id: actorUserId, akademik_diperiksa_at: now } });
     await history(tx, item, category, oldStatus, status, actorUserId, note, now);
+    if (status === 'BELUM_OK') await createNotifikasi(tx, {
+      kategori: 'ADMINISTRASI_KP', judul: 'Perbaikan administrasi KP',
+      pesan: 'Pemeriksaan administrasi KP meminta perbaikan.',
+      route: '/mahasiswa/pengajuan/kp', actorUserId,
+      recipientIds: [await studentRecipient(tx, id)],
+    });
     return { id, kategori: category, status, diperiksa_at: now };
   });
 }
@@ -245,7 +265,7 @@ async function requireApprovalReady(prisma, item) {
   }
 }
 
-export async function decideAdminKpApplication(prisma, { id, status, note, expectedSnapshot, actorUserId }) {
+async function decideApplication(prisma, { id, status, note, expectedSnapshot, actorUserId }) {
   return serializable(prisma, async (tx) => {
     const item = await locked(tx, id, expectedSnapshot);
     if (status === 'ACC') {
@@ -262,11 +282,18 @@ export async function decideAdminKpApplication(prisma, { id, status, note, expec
       diputuskan_oleh_user_id: actorUserId, diputuskan_at: now,
     } });
     await history(tx, item, 'PENGAJUAN', 'DIAJUKAN', status, actorUserId, note, now);
+    await createNotifikasi(tx, { kategori: 'ADMINISTRASI_KP',
+      judul: status === 'ACC' ? 'Administrasi KP disetujui' : 'Pengajuan KP tidak disetujui',
+      pesan: status === 'ACC' ? 'Pemeriksaan administrasi pengajuan KP selesai.'
+        : 'Keputusan administrasi pengajuan KP tersedia.',
+      route: '/mahasiswa/pengajuan/kp', actorUserId,
+      recipientIds: [await studentRecipient(tx, id)],
+    });
     return { id, status_pengajuan: status, diputuskan_at: now };
   });
 }
 
-export async function approveAllAdminKp(prisma, { id, expectedSnapshot, actorUserId }) {
+async function approveAll(prisma, { id, expectedSnapshot, actorUserId }) {
   return serializable(prisma, async (tx) => {
     const item = await locked(tx, id, expectedSnapshot);
     if (item.status_pemeriksaan_berkas === 'BELUM_OK' ||
@@ -290,6 +317,11 @@ export async function approveAllAdminKp(prisma, { id, expectedSnapshot, actorUse
     if (nilaiChanged) await history(tx, item, 'NILAI', item.status_pemeriksaan_akademik,
       'OK_LENGKAP', actorUserId, null, now);
     await history(tx, item, 'PENGAJUAN', 'DIAJUKAN', 'ACC', actorUserId, null, now);
+    await createNotifikasi(tx, { kategori: 'ADMINISTRASI_KP',
+      judul: 'Administrasi KP disetujui', pesan: 'Pemeriksaan administrasi pengajuan KP selesai.',
+      route: '/mahasiswa/pengajuan/kp', actorUserId,
+      recipientIds: [await studentRecipient(tx, id)],
+    });
     return { id, status_pemeriksaan_berkas: 'OK_LENGKAP',
       status_pemeriksaan_akademik: 'OK_LENGKAP', status_pengajuan: 'ACC', diputuskan_at: now };
   });

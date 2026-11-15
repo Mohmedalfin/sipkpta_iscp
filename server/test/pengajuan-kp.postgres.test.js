@@ -11,6 +11,7 @@ import JSZip from 'jszip';
 import { createApp } from '../src/app.js';
 import { signAccessToken } from '../src/security/jwt.js';
 import { REQUIRED_DOCUMENT_CODES } from '../src/services/data-diri.service.js';
+import { subscribeToUser } from '../src/services/realtime.service.js';
 
 const TEST_DATABASE = 'sipkita_test_kp_d1_spp_20261105070147_1066f27b';
 const KP_DOCUMENTS = [
@@ -95,6 +96,13 @@ async function reviewerRequest(base, token, path, { method = 'GET', body } = {})
     headers: response.headers };
 }
 
+async function notificationRequest(base, token, path, method = 'GET') {
+  const response = await fetch(`${base}/api/notifikasi${path}`, {
+    method, headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  return { status: response.status, body: await response.json() };
+}
+
 async function studentProposalRevision(base, token, id, expectedId, file, revisionNote) {
   const payload = new FormData();
   payload.set('expected_dokumen_pengajuan_id', String(expectedId));
@@ -168,6 +176,8 @@ test('D2, E, F, G, dan H Pengajuan KP berjalan atomik pada PostgreSQL TEST teris
       createdStage: null,
     };
     let server;
+    let unsubscribeRealtime = () => {};
+    let unsubscribeNotifications = () => {};
     try {
       const [identity] = await prisma.$queryRaw`SELECT current_database() AS name`;
       assert.equal(identity.name, TEST_DATABASE);
@@ -376,6 +386,14 @@ test('D2, E, F, G, dan H Pengajuan KP berjalan atomik pada PostgreSQL TEST teris
       server = createApp({ prisma }).listen(0, '127.0.0.1');
       await new Promise((resolve) => server.once('listening', resolve));
       const base = `http://127.0.0.1:${server.address().port}`;
+      const studentEvents = [];
+      unsubscribeRealtime = subscribeToUser(userA.id, (event) => {
+        if (event.resource_type === 'pengajuan') studentEvents.push(event);
+      });
+      const adminNotificationEvents = [];
+      unsubscribeNotifications = subscribeToUser(adminUser.id, (event) => {
+        if (event.type === 'notifikasi.updated') adminNotificationEvents.push(event);
+      }, 'ADMIN_PRODI');
       assert.equal((await request(base, null, '/opsi-form?tahap=KP')).status, 401);
       assert.equal((await request(base, adminToken, '/opsi-form?tahap=KP')).status, 403);
       const options = await request(base, tokenA, '/opsi-form?tahap=KP');
@@ -476,8 +494,30 @@ test('D2, E, F, G, dan H Pengajuan KP berjalan atomik pada PostgreSQL TEST teris
       });
       assert.equal(submittedA.status, 200);
       assert.equal(submittedA.body.data.status_pengajuan, 'DIAJUKAN');
+      assert.equal(adminNotificationEvents.length, 1, 'Submit mengirim invalidasi inbox setelah commit.');
       assert.equal(submittedA.body.data.status_pemeriksaan_berkas, 'BELUM_DIPERIKSA');
       assert.equal(submittedA.body.data.status_pemeriksaan_akademik, 'BELUM_DIPERIKSA');
+      assert.equal((await notificationRequest(base, null, '/')).status, 401);
+      const adminInbox = await notificationRequest(base, adminToken, '/?page=1&limit=10&dibaca=false');
+      assert.equal(adminInbox.status, 200);
+      assert.equal(adminInbox.body.data.pagination.total, 1);
+      assert.equal(adminInbox.body.data.items[0].kategori_notifikasi, 'PENGAJUAN_KP');
+      assert.equal(typeof adminInbox.body.data.items[0].id, 'string');
+      assert.equal((await notificationRequest(base, tokenA,
+        `/${adminInbox.body.data.items[0].id}/dibaca`, 'PATCH')).status, 404);
+      assert.equal((await notificationRequest(base, adminToken, '/belum-dibaca/count')).body.data.count, 1);
+      const marked = await notificationRequest(base, adminToken,
+        `/${adminInbox.body.data.items[0].id}/dibaca`, 'PATCH');
+      assert.deepEqual([marked.status, marked.body.data.changed], [200, true]);
+      assert.equal((await notificationRequest(base, adminToken,
+        `/${adminInbox.body.data.items[0].id}/dibaca`, 'PATCH')).body.data.changed, false);
+      assert.equal((await notificationRequest(base, adminToken, '/belum-dibaca/count')).body.data.count, 0);
+      assert.equal((await notificationRequest(base, adminToken, '/?dibaca=true')).body.data.pagination.total, 1);
+      assert.equal((await notificationRequest(base, adminToken, '/?page=0')).status, 400);
+      assert.equal((await notificationRequest(base, adminToken, '/?page=2147483647&limit=100')).status, 400);
+      assert.equal((await notificationRequest(base, adminToken, '/999999999999999999999/dibaca', 'PATCH')).status, 400);
+      assert.equal((await notificationRequest(base, adminToken, '/?dibaca=invalid')).status, 400);
+      assert.equal((await notificationRequest(base, adminToken, '/dibaca-semua', 'PATCH')).body.data.updated, 0);
       persisted = await prisma.pengajuan.findUnique({ where: { id: applicationA } });
       assert.ok(persisted.diajukan_at instanceof Date);
       assert.equal(persisted.diajukan_at.getTime(), persisted.pernyataan_kebenaran_disetujui_at.getTime());
@@ -487,12 +527,17 @@ test('D2, E, F, G, dan H Pengajuan KP berjalan atomik pada PostgreSQL TEST teris
         [historyA[0].jenis_status, historyA[0].status_sebelum, historyA[0].status_sesudah, historyA[0].diubah_oleh_user_id],
         ['PENGAJUAN', 'DRAFT', 'DIAJUKAN', userA.id],
       );
+      const notificationEventsBeforeRetry = adminNotificationEvents.length;
       const repeated = await Promise.all([1, 2].map(() => request(base, tokenA, `/${applicationA}/kirim`, {
         method: 'POST', body: { setuju_pernyataan: true },
       })));
       assert.deepEqual(repeated.map((item) => item.status), [200, 200]);
       assert.ok(repeated.every((item) => item.body.data.idempotent === true));
+      assert.equal(adminNotificationEvents.length, notificationEventsBeforeRetry,
+        'Retry submit tidak menerbitkan event notifikasi.');
       assert.equal(await prisma.riwayatStatusPengajuan.count({ where: { pengajuan_id: applicationA } }), 1);
+      assert.equal((await notificationRequest(base, adminToken, '/?dibaca=true')).body.data.pagination.total, 1,
+        'Submit idempotent tidak menambah notifikasi.');
       assert.equal((await request(base, tokenA, `/${applicationA}`, {
         method: 'PATCH', body: { judul_penelitian: 'Tidak Boleh' },
       })).status, 409);
@@ -526,10 +571,13 @@ test('D2, E, F, G, dan H Pengajuan KP berjalan atomik pada PostgreSQL TEST teris
         method: 'PATCH', body: { status: 'BELUM_OK', catatan: 'Proposal perlu diperbaiki.', expected_snapshot: stale },
       });
       assert.equal(berkas.status, 200);
+      assert.equal(studentEvents.at(-1).type, 'pengajuan.administration.updated');
+      const afterCategoryEvents = studentEvents.length;
       assert.equal((await adminRequest(base, adminToken, `/${applicationA}/pemeriksaan-nilai`, {
         method: 'PATCH', body: { status: 'OK_LENGKAP', expected_snapshot: stale },
       })).status, 409);
       const afterBerkas = (await adminRequest(base, adminToken, `/${applicationA}`)).body.data;
+      assert.equal(studentEvents.length, afterCategoryEvents, 'Snapshot stale tidak mengirim event.');
       assert.equal((await adminRequest(base, adminToken, `/${applicationA}/pemeriksaan-nilai`, {
         method: 'PATCH', body: { status: 'OK_LENGKAP', expected_snapshot: afterBerkas.snapshot },
       })).status, 200);
@@ -780,11 +828,20 @@ test('D2, E, F, G, dan H Pengajuan KP berjalan atomik pada PostgreSQL TEST teris
       });
       assert.equal(bulk.status, 200);
       assert.deepEqual([bulk.body.data.created, bulk.body.data.already_assigned], [2, 0]);
+      assert.equal(studentEvents.at(-1).type, 'pengajuan.assignment.updated');
+      const afterAssignmentEvents = studentEvents.length;
+      const assignmentNoticesBeforeRetry = await prisma.notifikasiPenerima.count({ where: {
+        notifikasi: { kategori_notifikasi: 'PENUGASAN_REVIEWER_KP' },
+      } });
       const repeatedBulk = await kaprodiRequest(base, kaprodiToken, '/penugasan-reviewer/bulk', {
         method: 'POST', body: { pengajuan_ids: [applicationA, applicationD], dosen_id: ids.extraDosen[1] },
       });
       assert.deepEqual([repeatedBulk.status, repeatedBulk.body.data.created,
         repeatedBulk.body.data.already_assigned], [200, 0, 2]);
+      assert.equal(studentEvents.length, afterAssignmentEvents, 'Penugasan idempotent tidak mengirim ulang event.');
+      assert.equal(await prisma.notifikasiPenerima.count({ where: {
+        notifikasi: { kategori_notifikasi: 'PENUGASAN_REVIEWER_KP' },
+      } }), assignmentNoticesBeforeRetry, 'Retry bulk tidak membuat notifikasi ganda.');
       const mixedBulk = await kaprodiRequest(base, kaprodiToken, '/penugasan-reviewer/bulk', {
         method: 'POST', body: { pengajuan_ids: [applicationA, applicationB],
           dosen_id: ids.extraDosen[1] },
@@ -990,6 +1047,10 @@ test('D2, E, F, G, dan H Pengajuan KP berjalan atomik pada PostgreSQL TEST teris
         adminAfterAccRevision.status_pemeriksaan_berkas,
         adminAfterAccRevision.status_pemeriksaan_akademik],
       ['ACC', 'OK_LENGKAP', 'OK_LENGKAP']);
+      assert.ok(studentEvents.some((event) => event.resource_id === applicationA));
+      const eventsBeforeRollback = studentEvents.length;
+      const studentNoticesBeforeRollback = await prisma.notifikasiPenerima.count({
+        where: { penerima_user_id: userA.id } });
       const staleBulk = await reviewerRequest(base, reviewerTokenC,
         '/review/bulk-layak', { method: 'POST', body: { konfirmasi: true, items: [
           { pengajuan_id: applicationA, expected_dokumen_pengajuan_id: reviewDetailA.versi_proposal.id },
@@ -997,6 +1058,9 @@ test('D2, E, F, G, dan H Pengajuan KP berjalan atomik pada PostgreSQL TEST teris
           { pengajuan_id: applicationD, expected_dokumen_pengajuan_id: versionD1.id },
         ] } });
       assert.equal(staleBulk.status, 409);
+      assert.equal(await prisma.notifikasiPenerima.count({ where: { penerima_user_id: userA.id } }),
+        studentNoticesBeforeRollback, 'Rollback bulk tidak meninggalkan notifikasi.');
+      assert.equal(studentEvents.length, eventsBeforeRollback, 'Rollback tidak menerbitkan event.');
       assert.equal(await prisma.riwayatReview.count({ where: {
         direview_oleh_user_id: reviewerUserC.id,
         dokumen_pengajuan_id: reviewDetailA.versi_proposal.id,
@@ -1011,14 +1075,37 @@ test('D2, E, F, G, dan H Pengajuan KP berjalan atomik pada PostgreSQL TEST teris
           { pengajuan_id: applicationA, expected_dokumen_pengajuan_id: reviewDetailA.versi_proposal.id },
           { pengajuan_id: String(applicationA), expected_dokumen_pengajuan_id: reviewDetailA.versi_proposal.id },
         ] } })).status, 400);
+      const reviewNoticesBeforeBulk = await prisma.notifikasiPenerima.count({ where: {
+        penerima_user_id: userA.id,
+        notifikasi: { kategori_notifikasi: 'REVIEW_PROPOSAL_KP' },
+      } });
       const concurrentReview = await Promise.all([1, 2].map(() => reviewerRequest(base,
         reviewerTokenC, '/review/bulk-layak', { method: 'POST', body: validBulkBody })));
       assert.deepEqual(concurrentReview.map((item) => item.status), [200, 200]);
       assert.deepEqual(concurrentReview.map((item) => item.body.data.created).sort(), [0, 3]);
+      assert.equal(await prisma.notifikasiPenerima.count({ where: {
+        penerima_user_id: userA.id,
+        notifikasi: { kategori_notifikasi: 'REVIEW_PROPOSAL_KP' },
+      } }), reviewNoticesBeforeBulk + 1);
+      assert.equal(studentEvents.length, eventsBeforeRollback + 1, 'Bulk commit memberi satu event per pengajuan pemilik.');
       const repeatedReview = await reviewerRequest(base, reviewerTokenC,
         '/review/bulk-layak', { method: 'POST', body: validBulkBody });
       assert.deepEqual([repeatedReview.status, repeatedReview.body.data.created,
         repeatedReview.body.data.already_layak], [200, 0, 3]);
+      assert.equal(await prisma.notifikasiPenerima.count({ where: {
+        penerima_user_id: userA.id,
+        notifikasi: { kategori_notifikasi: 'REVIEW_PROPOSAL_KP' },
+      } }), reviewNoticesBeforeBulk + 1, 'Review idempotent tidak menambah notifikasi.');
+      const unreadBeforeAll = (await notificationRequest(base, tokenA,
+        '/belum-dibaca/count')).body.data.count;
+      assert.ok(unreadBeforeAll > 0);
+      assert.equal((await notificationRequest(base, tokenA,
+        '/dibaca-semua', 'PATCH')).body.data.updated, unreadBeforeAll);
+      assert.equal((await notificationRequest(base, tokenA,
+        '/belum-dibaca/count')).body.data.count, 0);
+      assert.equal((await notificationRequest(base, tokenA,
+        '/dibaca-semua', 'PATCH')).body.data.updated, 0);
+      assert.equal(studentEvents.length, eventsBeforeRollback + 1, 'Request idempotent tidak menerbitkan event ganda.');
       assert.equal((await reviewerRequest(base, reviewerTokenB,
         `/pengajuan/${applicationD}/review`, { method: 'POST', body: {
           hasil_review: 'LAYAK', expected_dokumen_pengajuan_id: detailD2.versi_proposal.id,
@@ -1256,6 +1343,8 @@ test('D2, E, F, G, dan H Pengajuan KP berjalan atomik pada PostgreSQL TEST teris
       await prisma.programStudi.delete({ where: { id: anotherProdi.id } });
       ids.otherProdi = null;
     } finally {
+      unsubscribeRealtime();
+      unsubscribeNotifications();
       if (server) await new Promise((resolve) => server.close(resolve));
       try {
         if (ids.students.length) {
@@ -1349,6 +1438,16 @@ test('D2, E, F, G, dan H Pengajuan KP berjalan atomik pada PostgreSQL TEST teris
         } });
         if (ids.students.length) await prisma.mahasiswa.deleteMany({ where: { id: { in: ids.students } } });
         if (ids.users.length) {
+          const notifications = await prisma.notifikasi.findMany({ where: {
+            OR: [{ dibuat_oleh_user_id: { in: ids.users } },
+              { penerima: { some: { penerima_user_id: { in: ids.users } } } }],
+          }, select: { id: true } });
+          if (notifications.length) {
+            const notificationIds = notifications.map((row) => row.id);
+            await prisma.notifikasiPenerima.deleteMany({ where: {
+              notifikasi_id: { in: notificationIds } } });
+            await prisma.notifikasi.deleteMany({ where: { id: { in: notificationIds } } });
+          }
           await prisma.userRole.deleteMany({ where: { user_id: { in: ids.users } } });
           await prisma.user.deleteMany({ where: { id: { in: ids.users } } });
         }

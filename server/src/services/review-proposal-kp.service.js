@@ -1,9 +1,11 @@
+import { createNotifikasi, reviewerRecipients, studentRecipient } from './notifikasi.service.js';
 import { createHash, randomUUID } from 'node:crypto';
 import {
   readPrivateDocument, removePrivateDocument, validatePdfDocument, writePrivateDocument,
 } from './data-diri.service.js';
 import { serializable } from './pengajuan-kp.service.js';
 import { PENUGASAN_REVIEWER_KP } from './penugasan-reviewer-kp.service.js';
+import { publishReviewChanges } from './realtime.service.js';
 import { getBucketName, getSupabaseClient, isSupabaseStorageConfigured } from './storage.service.js';
 
 export class ReviewKpError extends Error {
@@ -293,20 +295,29 @@ async function reviewOne(tx, userId, id, expectedProposalId, expectedTopicId, re
     hasil_review: result, catatan_reviewer: note, direview_oleh_user_id: userId,
     reviewed_at: new Date(),
   }, select: { id: true, putaran_ke: true } });
+  await createNotifikasi(tx, { kategori: 'REVIEW_PROPOSAL_KP',
+    judul: 'Hasil review proposal KP',
+    pesan: result === 'LAYAK' ? 'Proposal KP dinyatakan layak oleh Reviewer.'
+      : 'Proposal KP memerlukan revisi.',
+    route: '/mahasiswa/pengajuan/kp', actorUserId: userId,
+    recipientIds: [await studentRecipient(tx, id)],
+  });
   return { pengajuan_id: id, result: 'created', hasil_review: result,
     riwayat_id: history.id.toString(), putaran_ke: history.putaran_ke };
 }
 
 export async function submitReviewerKpReview(prisma, userId, id, input) {
-  return serializable(prisma, async (tx) => {
+  const result = await serializable(prisma, async (tx) => {
     await lock(tx, id);
     return reviewOne(tx, userId, id, input.expected_dokumen_pengajuan_id,
       input.expected_versi_topik_id, input.hasil_review, input.catatan_reviewer);
   });
+  if (result.result === 'created') await publishReviewChanges(prisma, [id]);
+  return result;
 }
 
 export async function bulkLayakReviewerKp(prisma, userId, items) {
-  return serializable(prisma, async (tx) => {
+  const result = await serializable(prisma, async (tx) => {
     const results = [];
     for (const item of [...items].sort((a, b) => a.pengajuan_id - b.pengajuan_id)) {
       await lock(tx, item.pengajuan_id);
@@ -328,6 +339,8 @@ export async function bulkLayakReviewerKp(prisma, userId, items) {
       already_layak: results.filter((row) => row.result === 'already_reviewed').length,
       total: results.length };
   });
+  if (result.created) await publishReviewChanges(prisma, items.map((item) => item.pengajuan_id));
+  return result;
 }
 
 export async function getOwnKpReviews(prisma, userId, id) {
@@ -396,7 +409,7 @@ export async function reviseOwnKpProposal(prisma, userId, id, expectedProposalId
   }
   try {
     await writePrivateDocument(storageKey, file.buffer);
-    return await serializable(prisma, async (tx) => {
+    const result = await serializable(prisma, async (tx) => {
       await lock(tx, id);
       await requireReviewMutable(tx, id);
       const application = await studentApplication(tx, userId, id);
@@ -435,9 +448,17 @@ export async function reviseOwnKpProposal(prisma, userId, id, expectedProposalId
           pengajuan_id: id },
         keterangan: revisionNote,
       } });
+      await createNotifikasi(tx, { kategori: 'REVISI_PROPOSAL_KP',
+        judul: 'Revisi proposal KP baru',
+        pesan: 'Mahasiswa telah mengirim revisi proposal KP.',
+        route: '/reviewer/review-kp', actorUserId: userId,
+        recipientIds: await reviewerRecipients(tx, id),
+      });
       return { pengajuan_id: id, dokumen_pengajuan_id: next.id,
         nomor_versi: next.nomor_versi, catatan_perbaikan: revisionNote };
     });
+    await publishReviewChanges(prisma, [id]);
+    return result;
   } catch (error) {
     try { await removePrivateDocument(storageKey, { strict: true }); }
     catch { console.error('Gagal membersihkan revisi proposal setelah transaksi gagal.'); }

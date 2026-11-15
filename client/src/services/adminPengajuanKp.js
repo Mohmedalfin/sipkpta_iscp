@@ -70,7 +70,7 @@ export async function fetchAdminKpApplications({
   status_pengajuan = '',
   status_berkas = '',
   status_nilai = '',
-} = {}) {
+} = {}, { signal } = {}) {
   const params = {};
   if (page) params.page = page;
   if (limit) params.limit = limit;
@@ -79,7 +79,7 @@ export async function fetchAdminKpApplications({
   if (status_berkas && status_berkas.trim()) params.status_berkas = status_berkas.trim();
   if (status_nilai && status_nilai.trim()) params.status_nilai = status_nilai.trim();
 
-  const response = await api.get(BASE_PATH, { params });
+  const response = await api.get(BASE_PATH, { params, signal });
   return response.data.data;
 }
 
@@ -88,8 +88,8 @@ export async function fetchAdminKpApplications({
  * @param {number|string} id - ID Pengajuan
  * @returns {Promise<object>} Detail pengajuan dengan field snapshot SHA-256
  */
-export async function fetchAdminKpDetail(id) {
-  const response = await api.get(`${BASE_PATH}/${id}`);
+export async function fetchAdminKpDetail(id, { signal } = {}) {
+  const response = await api.get(`${BASE_PATH}/${id}`, { signal });
   return response.data.data;
 }
 

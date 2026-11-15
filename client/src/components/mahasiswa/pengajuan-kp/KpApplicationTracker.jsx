@@ -51,15 +51,15 @@ const STATUS_CONFIG = {
   },
   [KP_STATUS_PENGAJUAN.DIAJUKAN]: {
     label: 'Menunggu Verifikasi Admin',
-    badgeClass: 'bg-blue-50 text-brand border-blue-200',
+    badgeClass: 'bg-blue-50 text-brand border-blue-100',
   },
   [KP_STATUS_PENGAJUAN.ACC]: {
     label: 'ACC Administrasi',
-    badgeClass: 'bg-emerald-50 text-emerald-800 border-emerald-300',
+    badgeClass: 'bg-emerald-50 text-emerald-800 border-emerald-100',
   },
   [KP_STATUS_PENGAJUAN.TIDAK_ACC]: {
     label: 'Tidak ACC',
-    badgeClass: 'bg-rose-50 text-danger border-rose-300',
+    badgeClass: 'bg-rose-50 text-danger border-rose-100',
   },
 };
 
