@@ -1,7 +1,974 @@
+// SIPKITA — skema PostgreSQL berdasarkan Database Skema ISCP (revisi 29 Oktober 2026)
+// Model menggunakan PascalCase; nama kolom SQL tetap snake_case melalui field Prisma.
+// Prisma ORM 7: DATABASE_URL dibaca dari prisma.config.ts, bukan dari blok datasource.
+// Generator lama dipertahankan agar kode Express yang mengimpor @prisma/client tidak berubah.
+
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  // PostgreSQL partial unique index memerlukan Prisma ORM >= 7.4.
+  previewFeatures = ["partialIndexes"]
 }
 
 datasource db {
   provider = "postgresql"
+}
+
+// ============================================================================
+// KELOMPOK A — AKUN, MASTER PENGGUNA, VERIFIKASI DATA DIRI, AUDIT
+// ============================================================================
+
+model User {
+  id                  Int       @id @default(autoincrement())
+  login_id            String    @unique @db.VarChar(50)
+  email               String    @unique @db.VarChar(254)
+  password_hash       String    @db.VarChar(255)
+  status_akun         String    @default("AKTIF") @db.VarChar(20)
+  last_login_at       DateTime? @db.Timestamptz(6)
+  password_changed_at DateTime? @db.Timestamptz(6)
+  created_at          DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at          DateTime  @updatedAt @db.Timestamptz(6)
+
+  user_roles_diperoleh                UserRole[]                @relation("UserRolePemilik")
+  user_roles_diberikan                UserRole[]                @relation("UserRolePemberi")
+  mahasiswa                          Mahasiswa?                @relation("MahasiswaAkun")
+  dosen                              Dosen?                    @relation("DosenAkun")
+  verifikasi_diri_diperiksa           VerifikasiDataDiri[]      @relation("VerifikasiDiriPemeriksa")
+  dokumen_diri_diperiksa              DokumenDataDiri[]         @relation("DokumenDiriPemeriksa")
+  password_reset_tokens              PasswordResetToken[]      @relation("ResetPasswordPemilik")
+  auth_sessions                      AuthSession[]             @relation("AuthSessionPemilik")
+  import_diunggah                     ImportBatch[]             @relation("ImportPengunggah")
+  import_dikonfirmasi                 ImportBatch[]             @relation("ImportPengonfirmasi")
+  audit_logs                          AuditLog[]                @relation("AuditAktor")
+  jadwal_proses_dibuat                JadwalProses[]            @relation("JadwalProsesPembuat")
+  pengajuan_berkas_diperiksa          Pengajuan[]               @relation("PengajuanPemeriksaBerkas")
+  pengajuan_akademik_diperiksa        Pengajuan[]               @relation("PengajuanPemeriksaAkademik")
+  pengajuan_diputuskan                Pengajuan[]               @relation("PengajuanPemutus")
+  riwayat_status_pengajuan_diubah     RiwayatStatusPengajuan[]  @relation("RiwayatStatusPengubah")
+  dokumen_diunggah                    Dokumen[]                 @relation("DokumenPengunggah")
+  dokumen_pengajuan_diperiksa         DokumenPengajuan[]        @relation("DokumenPengajuanPemeriksa")
+  penugasan_ditetapkan                PenugasanDosen[]          @relation("PenugasanPenetap")
+  riwayat_review_dilakukan            RiwayatReview[]           @relation("RiwayatReviewReviewer")
+  bimbingan_diperiksa                 Bimbingan[]               @relation("BimbinganPemeriksa")
+  riwayat_bimbingan_dilakukan         RiwayatBimbingan[]        @relation("RiwayatBimbinganPelaku")
+  keputusan_perubahan_judul_diperiksa KeputusanPerubahanJudul[] @relation("KeputusanPerubahanPemeriksa")
+  penyelesaian_disetujui              PenyelesaianTahap[]       @relation("PenyelesaianPemberiAcc")
+  jadwal_seminar_dibuat               JadwalSeminar[]           @relation("JadwalSeminarPembuat")
+  riwayat_seminar_dilakukan           RiwayatJadwalSeminar[]    @relation("RiwayatSeminarPelaku")
+  notifikasi_dibuat                   Notifikasi[]              @relation("NotifikasiPembuat")
+  notifikasi_diterima                 NotifikasiPenerima[]      @relation("NotifikasiPenerimaAkun")
+  template_dokumen_dibuat             TemplateDokumen[]         @relation("TemplatePembuat")
+  aturan_penyelesaian_ditetapkan      AturanPenyelesaianTahap[] @relation("AturanPenetap")
+
+  @@map("users")
+}
+
+model Role {
+  id         Int       @id @default(autoincrement())
+  kode_peran String    @unique @db.VarChar(30)
+  nama_peran String    @db.VarChar(100)
+  deskripsi  String?   @db.Text
+  created_at DateTime  @default(now()) @db.Timestamptz(6)
+
+  user_roles          UserRole[]
+  auth_sessions_aktif AuthSession[] @relation("AuthSessionRoleAktif")
+
+  @@map("roles")
+}
+
+model UserRole {
+  user_id             Int
+  role_id             Int
+  assigned_at         DateTime @default(now()) @db.Timestamptz(6)
+  assigned_by_user_id Int?
+
+  user       User  @relation("UserRolePemilik", fields: [user_id], references: [id], onDelete: Restrict)
+  role       Role  @relation(fields: [role_id], references: [id], onDelete: Restrict)
+  pemberi    User? @relation("UserRolePemberi", fields: [assigned_by_user_id], references: [id], onDelete: Restrict)
+
+  @@id([user_id, role_id])
+  @@index([role_id])
+  @@index([assigned_by_user_id])
+  @@map("user_roles")
+}
+
+model ProgramStudi {
+  id                     Int      @id @default(autoincrement())
+  kode_prodi             String?  @unique @db.VarChar(30)
+  nama_prodi             String   @db.VarChar(150)
+  jenjang                String   @db.VarChar(10)
+  nama_fakultas          String   @db.VarChar(150)
+  nama_perguruan_tinggi  String   @db.VarChar(150)
+  created_at             DateTime @default(now()) @db.Timestamptz(6)
+  updated_at             DateTime @updatedAt @db.Timestamptz(6)
+
+  mahasiswa Mahasiswa[]
+  dosen     Dosen[]
+  kurikulum Kurikulum[]
+
+  @@map("program_studi")
+}
+
+model Mahasiswa {
+  id                Int       @id @default(autoincrement())
+  user_id           Int       @unique
+  program_studi_id  Int
+  nim               String    @unique @db.VarChar(25)
+  nama_lengkap      String    @db.VarChar(150)
+  nik_kependudukan  String?   @unique @db.VarChar(16)
+  tempat_lahir      String?   @db.VarChar(100)
+  tanggal_lahir     DateTime  @db.Date
+  no_telepon        String?   @db.VarChar(20)
+  alamat            String?   @db.Text
+  tahun_angkatan    Int?      @db.SmallInt
+  status_data       String    @default("AKTIF") @db.VarChar(20)
+  created_at        DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at        DateTime  @updatedAt @db.Timestamptz(6)
+
+  user                 User                 @relation("MahasiswaAkun", fields: [user_id], references: [id], onDelete: Restrict)
+  program_studi        ProgramStudi         @relation(fields: [program_studi_id], references: [id], onDelete: Restrict)
+  verifikasi_data_diri VerifikasiDataDiri?
+  pengajuan            Pengajuan[]
+  topik_penelitian     TopikPenelitian[]
+
+  @@index([program_studi_id])
+  @@map("mahasiswa")
+}
+
+model Dosen {
+  id                 Int       @id @default(autoincrement())
+  user_id            Int       @unique
+  program_studi_id   Int
+  kode_dosen         String    @unique @db.VarChar(25)
+  nidn               String?   @unique @db.VarChar(20)
+  nama_lengkap       String    @db.VarChar(150)
+  no_telepon         String?   @db.VarChar(20)
+  tanggal_lahir      DateTime  @db.Date
+  jabatan_fungsional String?   @db.VarChar(100)
+  is_homebase_si     Boolean   @default(false)
+  status_data        String    @default("AKTIF") @db.VarChar(20)
+  created_at         DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at         DateTime  @updatedAt @db.Timestamptz(6)
+
+  user               User             @relation("DosenAkun", fields: [user_id], references: [id], onDelete: Restrict)
+  program_studi      ProgramStudi     @relation(fields: [program_studi_id], references: [id], onDelete: Restrict)
+  pengajuan_diusulkan Pengajuan[]     @relation("PengajuanUsulanPembimbing")
+  penugasan_dosen    PenugasanDosen[]
+
+  @@index([program_studi_id])
+  @@map("dosen")
+}
+
+model VerifikasiDataDiri {
+  id                       Int       @id @default(autoincrement())
+  mahasiswa_id             Int       @unique
+  status_verifikasi        String    @default("BELUM_DIVERIFIKASI") @db.VarChar(30)
+  catatan_admin            String?   @db.Text
+  diajukan_at              DateTime? @db.Timestamptz(6)
+  diperiksa_oleh_user_id   Int?
+  diperiksa_at             DateTime? @db.Timestamptz(6)
+  diverifikasi_at          DateTime? @db.Timestamptz(6)
+  created_at               DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at               DateTime  @updatedAt @db.Timestamptz(6)
+
+  mahasiswa       Mahasiswa         @relation(fields: [mahasiswa_id], references: [id], onDelete: Restrict)
+  pemeriksa       User?             @relation("VerifikasiDiriPemeriksa", fields: [diperiksa_oleh_user_id], references: [id], onDelete: Restrict)
+  dokumen_data_diri DokumenDataDiri[]
+
+  @@index([diperiksa_oleh_user_id])
+  @@map("verifikasi_data_diri")
+}
+
+model DokumenDataDiri {
+  id                       Int       @id @default(autoincrement())
+  verifikasi_data_diri_id  Int
+  jenis_dokumen_id         Int
+  dokumen_id               Int
+  versi                    Int       @default(1)
+  is_terkini               Boolean   @default(true)
+  status_dokumen           String    @default("BELUM_DIPERIKSA") @db.VarChar(30)
+  catatan_admin            String?   @db.Text
+  diperiksa_oleh_user_id   Int?
+  diperiksa_at             DateTime? @db.Timestamptz(6)
+  created_at               DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at               DateTime  @updatedAt @db.Timestamptz(6)
+
+  verifikasi_data_diri VerifikasiDataDiri @relation(fields: [verifikasi_data_diri_id], references: [id], onDelete: Restrict)
+  jenis_dokumen        JenisDokumen        @relation(fields: [jenis_dokumen_id], references: [id], onDelete: Restrict)
+  dokumen              Dokumen             @relation(fields: [dokumen_id], references: [id], onDelete: Restrict)
+  pemeriksa            User?               @relation("DokumenDiriPemeriksa", fields: [diperiksa_oleh_user_id], references: [id], onDelete: Restrict)
+
+  @@unique([verifikasi_data_diri_id, jenis_dokumen_id, versi])
+  // Maksimal satu berkas identitas TERKINI per jenis dokumen dan mahasiswa.
+  @@unique([verifikasi_data_diri_id, jenis_dokumen_id], where: { is_terkini: true }, map: "uq_dokumen_diri_terkini")
+  @@index([jenis_dokumen_id])
+  @@index([dokumen_id])
+  @@index([diperiksa_oleh_user_id])
+  @@map("dokumen_data_diri")
+}
+
+model PasswordResetToken {
+  id         Int       @id @default(autoincrement())
+  user_id    Int
+  token_hash String    @unique @db.Char(64)
+  expires_at DateTime  @db.Timestamptz(6)
+  used_at    DateTime? @db.Timestamptz(6)
+  created_at DateTime  @default(now()) @db.Timestamptz(6)
+
+  user User @relation("ResetPasswordPemilik", fields: [user_id], references: [id], onDelete: Restrict)
+
+  @@index([user_id])
+  @@map("password_reset_tokens")
+}
+
+model AuthSession {
+  id             String    @id @db.Uuid
+  user_id        Int
+  active_role_id Int?
+  role_version   Int       @default(0)
+  expires_at     DateTime  @db.Timestamptz(6)
+  revoked_at     DateTime? @db.Timestamptz(6)
+  created_at     DateTime  @default(now()) @db.Timestamptz(6)
+
+  user           User           @relation("AuthSessionPemilik", fields: [user_id], references: [id], onDelete: Restrict)
+  active_role    Role?          @relation("AuthSessionRoleAktif", fields: [active_role_id], references: [id], onDelete: Restrict)
+  refresh_tokens RefreshToken[]
+
+  @@index([user_id])
+  @@index([active_role_id])
+  @@map("auth_sessions")
+}
+
+model RefreshToken {
+  id         String    @id @db.Uuid
+  session_id String    @db.Uuid
+  token_hash String    @unique @db.Char(64)
+  expires_at DateTime  @db.Timestamptz(6)
+  used_at    DateTime? @db.Timestamptz(6)
+  created_at DateTime  @default(now()) @db.Timestamptz(6)
+
+  session AuthSession @relation(fields: [session_id], references: [id], onDelete: Restrict)
+
+  @@index([session_id])
+  @@map("refresh_tokens")
+}
+
+model ImportBatch {
+  id                         Int       @id @default(autoincrement())
+  jenis_data                 String    @db.VarChar(20)
+  nama_file                  String    @db.VarChar(255)
+  lokasi_file                String?   @db.VarChar(500)
+  status_import              String    @default("DRAFT") @db.VarChar(30)
+  jumlah_baris               Int       @default(0)
+  jumlah_valid               Int       @default(0)
+  jumlah_tidak_valid         Int       @default(0)
+  jumlah_berhasil            Int       @default(0)
+  jumlah_dilewati            Int       @default(0)
+  jumlah_gagal               Int       @default(0)
+  ringkasan_kesalahan        Json?     @db.JsonB
+  diunggah_oleh_user_id      Int
+  dikonfirmasi_oleh_user_id  Int?
+  processed_at               DateTime? @db.Timestamptz(6)
+  created_at                 DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at                 DateTime  @updatedAt @db.Timestamptz(6)
+
+  pengunggah  User  @relation("ImportPengunggah", fields: [diunggah_oleh_user_id], references: [id], onDelete: Restrict)
+  pengonfirmasi User? @relation("ImportPengonfirmasi", fields: [dikonfirmasi_oleh_user_id], references: [id], onDelete: Restrict)
+
+  @@index([diunggah_oleh_user_id])
+  @@index([dikonfirmasi_oleh_user_id])
+  @@map("import_batches")
+}
+
+model AuditLog {
+  id             BigInt    @id @default(autoincrement())
+  aktor_user_id  Int?
+  aksi           String    @db.VarChar(80)
+  entitas        String    @db.VarChar(80)
+  entitas_id     BigInt?
+  data_sebelum   Json?     @db.JsonB
+  data_sesudah   Json?     @db.JsonB
+  keterangan     String?   @db.Text
+  alamat_ip      String?   @db.Inet
+  created_at     DateTime  @default(now()) @db.Timestamptz(6)
+
+  aktor User? @relation("AuditAktor", fields: [aktor_user_id], references: [id], onDelete: Restrict)
+
+  @@index([aktor_user_id])
+  @@index([entitas, entitas_id])
+  @@map("audit_logs")
+}
+
+// ============================================================================
+// KELOMPOK B — PERIODE, TAHAP, PENGAJUAN, TOPIK, DAN RIWAYAT
+// ============================================================================
+
+model Kurikulum {
+  id                   Int      @id @default(autoincrement())
+  program_studi_id     Int
+  kode_kurikulum       String   @db.VarChar(50)
+  nama_kurikulum       String   @db.VarChar(150)
+  tahun_mulai_berlaku  Int      @db.SmallInt
+  keterangan           String?  @db.Text
+  is_aktif             Boolean  @default(true)
+  created_at           DateTime @default(now()) @db.Timestamptz(6)
+  updated_at           DateTime @updatedAt @db.Timestamptz(6)
+
+  program_studi ProgramStudi @relation(fields: [program_studi_id], references: [id], onDelete: Restrict)
+
+  @@unique([program_studi_id, kode_kurikulum])
+  @@map("kurikulum")
+}
+
+model PeriodeAkademik {
+  id              Int      @id @default(autoincrement())
+  tahun_ajaran    String   @db.VarChar(9)
+  semester        String   @db.VarChar(10)
+  tanggal_mulai   DateTime @db.Date
+  tanggal_selesai DateTime @db.Date
+  status_periode  String   @default("DRAFT") @db.VarChar(20)
+  created_at      DateTime @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime @updatedAt @db.Timestamptz(6)
+
+  jadwal_proses             JadwalProses[]
+  pengajuan                 Pengajuan[]
+  persyaratan_pengajuan     PersyaratanPengajuan[]
+  aturan_penyelesaian_tahap AturanPenyelesaianTahap[]
+
+  @@unique([tahun_ajaran, semester])
+  @@map("periode_akademik")
+}
+
+model TahapAkademik {
+  id                 Int      @id @default(autoincrement())
+  kode_tahap         String   @unique @db.VarChar(10)
+  nama_tahap         String   @db.VarChar(100)
+  urutan             Int      @unique @db.SmallInt
+  maks_perpanjangan  Int?     @db.SmallInt
+  is_aktif           Boolean  @default(true)
+  created_at         DateTime @default(now()) @db.Timestamptz(6)
+  updated_at         DateTime @updatedAt @db.Timestamptz(6)
+
+  jadwal_proses             JadwalProses[]
+  pengajuan                 Pengajuan[]
+  persyaratan_pengajuan     PersyaratanPengajuan[]
+  aturan_penyelesaian_tahap AturanPenyelesaianTahap[]
+
+  @@map("tahap_akademik")
+}
+
+model JadwalProses {
+  id                   Int      @id @default(autoincrement())
+  periode_akademik_id  Int
+  tahap_akademik_id    Int
+  jenis_proses         String   @db.VarChar(40)
+  tanggal_buka         DateTime @db.Timestamptz(6)
+  tanggal_tutup        DateTime @db.Timestamptz(6)
+  is_aktif             Boolean  @default(true)
+  keterangan           String?  @db.Text
+  dibuat_oleh_user_id  Int
+  created_at           DateTime @default(now()) @db.Timestamptz(6)
+  updated_at           DateTime @updatedAt @db.Timestamptz(6)
+
+  periode_akademik PeriodeAkademik @relation(fields: [periode_akademik_id], references: [id], onDelete: Restrict)
+  tahap_akademik   TahapAkademik   @relation(fields: [tahap_akademik_id], references: [id], onDelete: Restrict)
+  pembuat          User            @relation("JadwalProsesPembuat", fields: [dibuat_oleh_user_id], references: [id], onDelete: Restrict)
+
+  @@unique([periode_akademik_id, tahap_akademik_id, jenis_proses])
+  @@index([tahap_akademik_id])
+  @@index([dibuat_oleh_user_id])
+  @@map("jadwal_proses")
+}
+
+model Pengajuan {
+  id                               Int       @id @default(autoincrement())
+  nomor_pengajuan                  String?   @unique @db.VarChar(40)
+  mahasiswa_id                     Int
+  periode_akademik_id             Int
+  tahap_akademik_id               Int
+  jenis_pengajuan                 String    @db.VarChar(20)
+  pilihan_topik                    String    @db.VarChar(20)
+  topik_penelitian_id             Int?
+  versi_topik_id                  Int?
+  pengajuan_prasyarat_id          Int?
+  pengajuan_sebelumnya_id         Int?
+  usulan_pembimbing_id            Int?
+  ipk_saat_pengajuan              Decimal?  @db.Decimal(3, 2)
+  jumlah_sks_saat_pengajuan       Int?      @db.SmallInt
+  memiliki_nilai_de               Boolean?
+  daftar_mk_nilai_de              String?   @db.Text
+  sudah_bayar_spp_variabel        Boolean?
+  status_pemeriksaan_berkas        String    @default("BELUM_DIPERIKSA") @db.VarChar(30)
+  catatan_pemeriksaan_berkas       String?   @db.Text
+  diperiksa_berkas_oleh_user_id    Int?
+  diperiksa_berkas_at              DateTime? @db.Timestamptz(6)
+  status_pemeriksaan_akademik     String    @default("BELUM_DIPERIKSA") @db.VarChar(30)
+  catatan_pemeriksaan_akademik    String?   @db.Text
+  akademik_diperiksa_oleh_user_id Int?
+  akademik_diperiksa_at           DateTime? @db.Timestamptz(6)
+  status_pengajuan                String    @default("DRAFT") @db.VarChar(30)
+  status_pengerjaan               String?   @db.VarChar(30)
+  catatan_keputusan               String?   @db.Text
+  diputuskan_oleh_user_id         Int?
+  diputuskan_at                   DateTime? @db.Timestamptz(6)
+  diajukan_at                     DateTime? @db.Timestamptz(6)
+  pernyataan_kebenaran_disetujui_at DateTime? @db.Timestamptz(6)
+  created_at                      DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at                      DateTime  @updatedAt @db.Timestamptz(6)
+
+  mahasiswa                  Mahasiswa            @relation(fields: [mahasiswa_id], references: [id], onDelete: Restrict)
+  periode_akademik           PeriodeAkademik      @relation(fields: [periode_akademik_id], references: [id], onDelete: Restrict)
+  tahap_akademik             TahapAkademik        @relation(fields: [tahap_akademik_id], references: [id], onDelete: Restrict)
+  topik_penelitian           TopikPenelitian?     @relation(fields: [topik_penelitian_id], references: [id], onDelete: Restrict)
+  versi_topik                VersiTopik?          @relation(fields: [versi_topik_id], references: [id], onDelete: Restrict)
+  prasyarat                 Pengajuan?           @relation("PengajuanPrasyarat", fields: [pengajuan_prasyarat_id], references: [id], onDelete: Restrict)
+  pengajuan_dengan_prasyarat Pengajuan[]          @relation("PengajuanPrasyarat")
+  sebelumnya                Pengajuan?           @relation("PengajuanSebelumnya", fields: [pengajuan_sebelumnya_id], references: [id], onDelete: Restrict)
+  pengajuan_berikutnya       Pengajuan[]          @relation("PengajuanSebelumnya")
+  usulan_pembimbing         Dosen?               @relation("PengajuanUsulanPembimbing", fields: [usulan_pembimbing_id], references: [id], onDelete: Restrict)
+  pemeriksa_berkas          User?                @relation("PengajuanPemeriksaBerkas", fields: [diperiksa_berkas_oleh_user_id], references: [id], onDelete: Restrict)
+  pemeriksa_akademik        User?                @relation("PengajuanPemeriksaAkademik", fields: [akademik_diperiksa_oleh_user_id], references: [id], onDelete: Restrict)
+  pemutus                   User?                @relation("PengajuanPemutus", fields: [diputuskan_oleh_user_id], references: [id], onDelete: Restrict)
+  riwayat_status            RiwayatStatusPengajuan[]
+  dokumen_pengajuan         DokumenPengajuan[]
+  penugasan_dosen           PenugasanDosen[]
+  bimbingan                 Bimbingan[]
+  perubahan_judul           PerubahanJudul[]
+  penyelesaian_tahap        PenyelesaianTahap?
+  jadwal_seminar            JadwalSeminar[]
+
+  @@index([mahasiswa_id, tahap_akademik_id, periode_akademik_id])
+  @@index([periode_akademik_id])
+  @@index([tahap_akademik_id])
+  @@index([topik_penelitian_id])
+  @@index([versi_topik_id])
+  @@index([pengajuan_prasyarat_id])
+  @@index([pengajuan_sebelumnya_id])
+  @@index([usulan_pembimbing_id])
+  @@index([diperiksa_berkas_oleh_user_id])
+  @@index([akademik_diperiksa_oleh_user_id])
+  @@index([diputuskan_oleh_user_id])
+  @@map("pengajuan")
+}
+
+model TemaPenelitian {
+  id          Int      @id @default(autoincrement())
+  kode_tema   String   @unique @db.VarChar(30)
+  nama_tema   String   @unique @db.VarChar(150)
+  deskripsi   String?  @db.Text
+  is_aktif    Boolean  @default(true)
+  created_at  DateTime @default(now()) @db.Timestamptz(6)
+  updated_at  DateTime @updatedAt @db.Timestamptz(6)
+
+  topik_penelitian TopikPenelitian[]
+
+  @@map("tema_penelitian")
+}
+
+model TopikPenelitian {
+  id                  Int       @id @default(autoincrement())
+  mahasiswa_id        Int
+  tema_penelitian_id  Int
+  status_topik        String    @default("AKTIF") @db.VarChar(20)
+  alasan_penutupan    String?   @db.VarChar(50)
+  ditutup_at          DateTime? @db.Timestamptz(6)
+  created_at          DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at          DateTime  @updatedAt @db.Timestamptz(6)
+
+  mahasiswa       Mahasiswa       @relation(fields: [mahasiswa_id], references: [id], onDelete: Restrict)
+  tema_penelitian TemaPenelitian  @relation(fields: [tema_penelitian_id], references: [id], onDelete: Restrict)
+  versi_topik     VersiTopik[]
+  pengajuan       Pengajuan[]
+
+  @@index([mahasiswa_id])
+  @@index([tema_penelitian_id])
+  @@map("topik_penelitian")
+}
+
+model VersiTopik {
+  id                    Int       @id @default(autoincrement())
+  topik_penelitian_id   Int
+  nomor_versi           Int       @db.SmallInt
+  judul_penelitian      String    @db.VarChar(255)
+  objek_penelitian      String?   @db.VarChar(255)
+  lokasi_penelitian     String?   @db.Text
+  perubahan_judul_id    Int?      @unique
+  status_versi          String    @default("DRAFT") @db.VarChar(20)
+  berlaku_mulai_at      DateTime? @db.Timestamptz(6)
+  berlaku_selesai_at    DateTime? @db.Timestamptz(6)
+  created_at            DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at            DateTime  @updatedAt @db.Timestamptz(6)
+
+  topik_penelitian      TopikPenelitian @relation(fields: [topik_penelitian_id], references: [id], onDelete: Restrict)
+  perubahan_judul_hasil PerubahanJudul? @relation("VersiTopikHasilPerubahan", fields: [perubahan_judul_id], references: [id], onDelete: Restrict)
+  pengajuan             Pengajuan[]
+  riwayat_review        RiwayatReview[]
+  perubahan_judul_asal  PerubahanJudul[] @relation("PerubahanJudulVersiAsal")
+
+  @@unique([topik_penelitian_id, nomor_versi])
+  @@map("versi_topik")
+}
+
+model RiwayatStatusPengajuan {
+  id                   BigInt    @id @default(autoincrement())
+  pengajuan_id         Int
+  jenis_status         String    @db.VarChar(20)
+  status_sebelum       String?   @db.VarChar(30)
+  status_sesudah       String    @db.VarChar(30)
+  diubah_oleh_user_id  Int?
+  catatan              String?   @db.Text
+  created_at           DateTime  @default(now()) @db.Timestamptz(6)
+
+  pengajuan Pengajuan @relation(fields: [pengajuan_id], references: [id], onDelete: Restrict)
+  pengubah  User?     @relation("RiwayatStatusPengubah", fields: [diubah_oleh_user_id], references: [id], onDelete: Restrict)
+
+  @@index([pengajuan_id, created_at])
+  @@index([diubah_oleh_user_id])
+  @@map("riwayat_status_pengajuan")
+}
+
+// ============================================================================
+// KELOMPOK C — PERSYARATAN, DOKUMEN, PENUGASAN, DAN REVIEW PROPOSAL
+// ============================================================================
+
+model JenisDokumen {
+  id                Int      @id @default(autoincrement())
+  kode_jenis        String   @unique @db.VarChar(50)
+  nama_jenis        String   @db.VarChar(150)
+  kategori_dokumen  String   @db.VarChar(30)
+  deskripsi         String?  @db.Text
+  // Prisma tidak mendukung nullable scalar list: kosong [] menggantikan NULL.
+  format_diizinkan  String[] @default([]) @db.Text
+  maks_ukuran_mb    Int?     @db.SmallInt
+  is_aktif          Boolean  @default(true)
+  created_at        DateTime @default(now()) @db.Timestamptz(6)
+  updated_at        DateTime @updatedAt @db.Timestamptz(6)
+
+  dokumen_data_diri      DokumenDataDiri[]
+  persyaratan_pengajuan  PersyaratanPengajuan[]
+
+  @@map("jenis_dokumen")
+}
+
+model PersyaratanPengajuan {
+  id                                  Int      @id @default(autoincrement())
+  periode_akademik_id                 Int
+  tahap_akademik_id                   Int
+  jenis_pengajuan                     String   @db.VarChar(20)
+  pilihan_topik                        String   @db.VarChar(20)
+  jenis_dokumen_id                     Int
+  is_wajib                             Boolean  @default(true)
+  boleh_gunakan_dokumen_sebelumnya     Boolean  @default(false)
+  petunjuk                             String?  @db.Text
+  urutan_tampil                        Int      @default(1) @db.SmallInt
+  is_aktif                             Boolean  @default(true)
+  created_at                           DateTime @default(now()) @db.Timestamptz(6)
+  updated_at                           DateTime @updatedAt @db.Timestamptz(6)
+
+  periode_akademik  PeriodeAkademik    @relation(fields: [periode_akademik_id], references: [id], onDelete: Restrict)
+  tahap_akademik    TahapAkademik      @relation(fields: [tahap_akademik_id], references: [id], onDelete: Restrict)
+  jenis_dokumen     JenisDokumen       @relation(fields: [jenis_dokumen_id], references: [id], onDelete: Restrict)
+  dokumen_pengajuan DokumenPengajuan[]
+
+  @@unique([periode_akademik_id, tahap_akademik_id, jenis_pengajuan, pilihan_topik, jenis_dokumen_id])
+  @@index([tahap_akademik_id])
+  @@index([jenis_dokumen_id])
+  @@map("persyaratan_pengajuan")
+}
+
+model Dokumen {
+  id                          Int      @id @default(autoincrement())
+  diunggah_oleh_user_id       Int
+  nama_file_asli              String   @db.VarChar(255)
+  storage_key                 String   @unique @db.VarChar(500)
+  mime_type                   String   @db.VarChar(100)
+  ukuran_bytes                BigInt
+  checksum_sha256             String?  @db.Char(64)
+  created_at                  DateTime @default(now()) @db.Timestamptz(6)
+
+  pengunggah                  User                     @relation("DokumenPengunggah", fields: [diunggah_oleh_user_id], references: [id], onDelete: Restrict)
+  dokumen_data_diri           DokumenDataDiri[]
+  dokumen_pengajuan           DokumenPengajuan[]
+  lembar_riwayat_review       RiwayatReview[]          @relation("RiwayatReviewLembar")
+  lampiran_bimbingan          LampiranBimbingan[]
+  proposal_perubahan_judul    PerubahanJudul[]         @relation("PerubahanJudulProposal")
+  proposal_keputusan_perubahan KeputusanPerubahanJudul[] @relation("KeputusanPerubahanProposal")
+  template_dokumen_file       TemplateDokumen[]        @relation("TemplateFile")
+
+  @@index([diunggah_oleh_user_id])
+  @@map("dokumen")
+}
+
+model DokumenPengajuan {
+  id                          Int       @id @default(autoincrement())
+  pengajuan_id                Int
+  persyaratan_pengajuan_id    Int
+  dokumen_id                  Int
+  nomor_versi                 Int       @default(1) @db.SmallInt
+  is_terkini                  Boolean   @default(true)
+  sumber_dokumen              String    @default("UNGGAH_BARU") @db.VarChar(20)
+  sumber_dokumen_pengajuan_id Int?
+  status_pemeriksaan          String    @default("BELUM_DIPERIKSA") @db.VarChar(30)
+  catatan_pemeriksaan         String?   @db.Text
+  diperiksa_oleh_user_id      Int?
+  diperiksa_at                DateTime? @db.Timestamptz(6)
+  created_at                  DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at                  DateTime  @updatedAt @db.Timestamptz(6)
+
+  pengajuan            Pengajuan            @relation(fields: [pengajuan_id], references: [id], onDelete: Restrict)
+  persyaratan_pengajuan PersyaratanPengajuan @relation(fields: [persyaratan_pengajuan_id], references: [id], onDelete: Restrict)
+  dokumen              Dokumen              @relation(fields: [dokumen_id], references: [id], onDelete: Restrict)
+  sumber_sebelumnya     DokumenPengajuan?    @relation("DokumenPengajuanSumber", fields: [sumber_dokumen_pengajuan_id], references: [id], onDelete: Restrict)
+  digunakan_ulang_oleh  DokumenPengajuan[]   @relation("DokumenPengajuanSumber")
+  pemeriksa            User?                @relation("DokumenPengajuanPemeriksa", fields: [diperiksa_oleh_user_id], references: [id], onDelete: Restrict)
+  riwayat_review       RiwayatReview[]
+
+  @@unique([pengajuan_id, persyaratan_pengajuan_id, nomor_versi])
+  // Revisi wajib menonaktifkan versi lama dalam transaksi yang sama.
+  @@unique([pengajuan_id, persyaratan_pengajuan_id], where: { is_terkini: true }, map: "uq_dokumen_pengajuan_terkini")
+  @@index([persyaratan_pengajuan_id])
+  @@index([dokumen_id])
+  @@index([sumber_dokumen_pengajuan_id])
+  @@index([diperiksa_oleh_user_id])
+  @@map("dokumen_pengajuan")
+}
+
+model PenugasanDosen {
+  id                       Int       @id @default(autoincrement())
+  pengajuan_id             Int
+  dosen_id                 Int
+  jenis_penugasan          String    @db.VarChar(20)
+  asal_penugasan_id        Int?
+  sumber_penugasan         String    @db.VarChar(20)
+  ditetapkan_oleh_user_id  Int?
+  status_penugasan         String    @default("AKTIF") @db.VarChar(20)
+  mulai_at                 DateTime  @default(now()) @db.Timestamptz(6)
+  berakhir_at              DateTime? @db.Timestamptz(6)
+  alasan_perubahan         String?   @db.Text
+  created_at               DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at               DateTime  @updatedAt @db.Timestamptz(6)
+
+  pengajuan           Pengajuan         @relation(fields: [pengajuan_id], references: [id], onDelete: Restrict)
+  dosen               Dosen             @relation(fields: [dosen_id], references: [id], onDelete: Restrict)
+  asal_penugasan      PenugasanDosen?   @relation("PenugasanDosenAsal", fields: [asal_penugasan_id], references: [id], onDelete: Restrict)
+  penugasan_turunan  PenugasanDosen[]   @relation("PenugasanDosenAsal")
+  penetap            User?             @relation("PenugasanPenetap", fields: [ditetapkan_oleh_user_id], references: [id], onDelete: Restrict)
+  review_proposal    ReviewProposal?
+
+  @@index([pengajuan_id, jenis_penugasan, status_penugasan])
+  @@unique([pengajuan_id], where: { jenis_penugasan: "PEMBIMBING", status_penugasan: "AKTIF" }, map: "uq_pembimbing_aktif")
+  @@index([dosen_id])
+  @@index([asal_penugasan_id])
+  @@index([ditetapkan_oleh_user_id])
+  @@map("penugasan_dosen")
+}
+
+model ReviewProposal {
+  id                   Int       @id @default(autoincrement())
+  penugasan_dosen_id   Int       @unique
+  status_review        String    @default("BELUM_DIPERIKSA") @db.VarChar(30)
+  hasil_review         String?   @db.VarChar(30)
+  catatan_akhir        String?   @db.Text
+  mulai_review_at      DateTime? @db.Timestamptz(6)
+  selesai_review_at    DateTime? @db.Timestamptz(6)
+  created_at           DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at           DateTime  @updatedAt @db.Timestamptz(6)
+
+  penugasan_dosen PenugasanDosen  @relation(fields: [penugasan_dosen_id], references: [id], onDelete: Restrict)
+  riwayat_review  RiwayatReview[]
+
+  @@map("review_proposal")
+}
+
+model RiwayatReview {
+  id                        BigInt    @id @default(autoincrement())
+  review_proposal_id        Int
+  putaran_ke                Int       @db.SmallInt
+  dokumen_pengajuan_id      Int
+  versi_topik_id            Int
+  hasil_review              String    @db.VarChar(30)
+  catatan_reviewer          String?   @db.Text
+  lembar_review_dokumen_id  Int?
+  direview_oleh_user_id     Int
+  reviewed_at               DateTime  @db.Timestamptz(6)
+  created_at                DateTime  @default(now()) @db.Timestamptz(6)
+
+  review_proposal   ReviewProposal    @relation(fields: [review_proposal_id], references: [id], onDelete: Restrict)
+  dokumen_pengajuan DokumenPengajuan  @relation(fields: [dokumen_pengajuan_id], references: [id], onDelete: Restrict)
+  versi_topik       VersiTopik        @relation(fields: [versi_topik_id], references: [id], onDelete: Restrict)
+  lembar_review     Dokumen?          @relation("RiwayatReviewLembar", fields: [lembar_review_dokumen_id], references: [id], onDelete: Restrict)
+  reviewer          User             @relation("RiwayatReviewReviewer", fields: [direview_oleh_user_id], references: [id], onDelete: Restrict)
+
+  @@unique([review_proposal_id, putaran_ke])
+  @@index([dokumen_pengajuan_id])
+  @@index([versi_topik_id])
+  @@index([lembar_review_dokumen_id])
+  @@index([direview_oleh_user_id])
+  @@map("riwayat_review")
+}
+
+// ============================================================================
+// KELOMPOK D — BIMBINGAN, PERUBAHAN JUDUL, DAN ACC PENYELESAIAN
+// ============================================================================
+
+model Bimbingan {
+  id                           Int       @id @default(autoincrement())
+  pengajuan_id                 Int
+  jenis_bimbingan              String    @db.VarChar(10)
+  tanggal_bimbingan            DateTime? @db.Date
+  ringkasan                    String?   @db.Text
+  status_bimbingan             String    @default("DRAFT") @db.VarChar(25)
+  versi_pengiriman_terakhir    Int       @default(0) @db.SmallInt
+  catatan_pembimbing_terakhir  String?   @db.Text
+  diperiksa_oleh_user_id       Int?
+  diperiksa_at                DateTime? @db.Timestamptz(6)
+  diajukan_pertama_at          DateTime? @db.Timestamptz(6)
+  created_at                   DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at                   DateTime  @updatedAt @db.Timestamptz(6)
+
+  pengajuan          Pengajuan           @relation(fields: [pengajuan_id], references: [id], onDelete: Restrict)
+  pemeriksa          User?               @relation("BimbinganPemeriksa", fields: [diperiksa_oleh_user_id], references: [id], onDelete: Restrict)
+  riwayat_bimbingan  RiwayatBimbingan[]
+
+  @@index([pengajuan_id, status_bimbingan])
+  @@index([diperiksa_oleh_user_id])
+  @@map("bimbingan")
+}
+
+model RiwayatBimbingan {
+  id                          BigInt    @id @default(autoincrement())
+  bimbingan_id                Int
+  dilakukan_oleh_user_id      Int
+  aksi                        String    @db.VarChar(30)
+  versi_pengiriman            Int       @db.SmallInt
+  status_sebelum              String?   @db.VarChar(25)
+  status_sesudah              String    @db.VarChar(25)
+  tanggal_bimbingan_snapshot  DateTime? @db.Date
+  ringkasan_snapshot          String?   @db.Text
+  catatan                     String?   @db.Text
+  created_at                  DateTime  @default(now()) @db.Timestamptz(6)
+
+  bimbingan          Bimbingan           @relation(fields: [bimbingan_id], references: [id], onDelete: Restrict)
+  pelaku             User                @relation("RiwayatBimbinganPelaku", fields: [dilakukan_oleh_user_id], references: [id], onDelete: Restrict)
+  lampiran_bimbingan LampiranBimbingan[]
+
+  @@index([bimbingan_id, created_at])
+  @@index([dilakukan_oleh_user_id])
+  @@map("riwayat_bimbingan")
+}
+
+model LampiranBimbingan {
+  id                   Int      @id @default(autoincrement())
+  riwayat_bimbingan_id BigInt
+  dokumen_id           Int
+  jenis_lampiran       String   @db.VarChar(25)
+  keterangan           String?  @db.Text
+  urutan_tampil        Int      @default(1) @db.SmallInt
+  created_at           DateTime @default(now()) @db.Timestamptz(6)
+
+  riwayat_bimbingan RiwayatBimbingan @relation(fields: [riwayat_bimbingan_id], references: [id], onDelete: Restrict)
+  dokumen            Dokumen          @relation(fields: [dokumen_id], references: [id], onDelete: Restrict)
+
+  @@index([riwayat_bimbingan_id])
+  @@index([dokumen_id])
+  @@map("lampiran_bimbingan")
+}
+
+model PerubahanJudul {
+  id                            Int       @id @default(autoincrement())
+  pengajuan_id                  Int
+  versi_topik_asal_id           Int
+  judul_usulan                  String    @db.VarChar(255)
+  objek_usulan                  String    @db.VarChar(255)
+  lokasi_usulan                 String?   @db.VarChar(255)
+  alasan_perubahan              String    @db.Text
+  proposal_perubahan_dokumen_id Int?
+  status_perubahan              String    @default("DRAFT") @db.VarChar(30)
+  diajukan_at                   DateTime? @db.Timestamptz(6)
+  diputuskan_at                 DateTime? @db.Timestamptz(6)
+  created_at                    DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at                    DateTime  @updatedAt @db.Timestamptz(6)
+
+  pengajuan           Pengajuan                 @relation(fields: [pengajuan_id], references: [id], onDelete: Restrict)
+  versi_topik_asal    VersiTopik                @relation("PerubahanJudulVersiAsal", fields: [versi_topik_asal_id], references: [id], onDelete: Restrict)
+  versi_topik_hasil   VersiTopik?               @relation("VersiTopikHasilPerubahan")
+  proposal_perubahan Dokumen?                  @relation("PerubahanJudulProposal", fields: [proposal_perubahan_dokumen_id], references: [id], onDelete: Restrict)
+  keputusan          KeputusanPerubahanJudul[]
+
+  @@index([pengajuan_id])
+  @@index([versi_topik_asal_id])
+  @@index([proposal_perubahan_dokumen_id])
+  @@map("perubahan_judul")
+}
+
+model KeputusanPerubahanJudul {
+  id                         Int      @id @default(autoincrement())
+  perubahan_judul_id         Int
+  diperiksa_oleh_user_id     Int
+  peran_pemeriksa            String   @db.VarChar(20)
+  putaran_ke                 Int      @default(1) @db.SmallInt
+  keputusan                  String   @db.VarChar(20)
+  catatan                    String?  @db.Text
+  judul_diperiksa_snapshot   String   @db.VarChar(255)
+  objek_diperiksa_snapshot   String   @db.VarChar(255)
+  lokasi_diperiksa_snapshot  String?  @db.VarChar(255)
+  proposal_dokumen_id        Int
+  diputuskan_at              DateTime @db.Timestamptz(6)
+  created_at                 DateTime @default(now()) @db.Timestamptz(6)
+
+  perubahan_judul PerubahanJudul @relation(fields: [perubahan_judul_id], references: [id], onDelete: Restrict)
+  pemeriksa       User           @relation("KeputusanPerubahanPemeriksa", fields: [diperiksa_oleh_user_id], references: [id], onDelete: Restrict)
+  proposal        Dokumen        @relation("KeputusanPerubahanProposal", fields: [proposal_dokumen_id], references: [id], onDelete: Restrict)
+
+  @@index([perubahan_judul_id, putaran_ke])
+  @@index([diperiksa_oleh_user_id])
+  @@index([proposal_dokumen_id])
+  @@map("keputusan_perubahan_judul")
+}
+
+model PenyelesaianTahap {
+  id                           Int      @id @default(autoincrement())
+  pengajuan_id                 Int      @unique
+  aturan_penyelesaian_tahap_id Int
+  jumlah_bimbingan_saat_acc    Int      @db.SmallInt
+  minimal_bimbingan_saat_acc   Int      @db.SmallInt
+  catatan_penyelesaian         String?  @db.Text
+  disetujui_oleh_user_id       Int
+  disetujui_at                 DateTime @db.Timestamptz(6)
+  created_at                   DateTime @default(now()) @db.Timestamptz(6)
+
+  pengajuan       Pengajuan                @relation(fields: [pengajuan_id], references: [id], onDelete: Restrict)
+  aturan          AturanPenyelesaianTahap  @relation(fields: [aturan_penyelesaian_tahap_id], references: [id], onDelete: Restrict)
+  pemberi_acc     User                     @relation("PenyelesaianPemberiAcc", fields: [disetujui_oleh_user_id], references: [id], onDelete: Restrict)
+
+  @@index([aturan_penyelesaian_tahap_id])
+  @@index([disetujui_oleh_user_id])
+  @@map("penyelesaian_tahap")
+}
+
+// ============================================================================
+// KELOMPOK E — SEMINAR, NOTIFIKASI, TEMPLATE, ATURAN PENYELESAIAN
+// ============================================================================
+
+model JadwalSeminar {
+  id                   Int       @id @default(autoincrement())
+  pengajuan_id         Int
+  mulai_at             DateTime  @db.Timestamptz(6)
+  selesai_at           DateTime? @db.Timestamptz(6)
+  jenis_pelaksanaan    String    @db.VarChar(10)
+  lokasi_seminar       String?   @db.VarChar(255)
+  tautan_seminar       String?   @db.VarChar(500)
+  keterangan           String?   @db.Text
+  status_jadwal        String    @default("TERJADWAL") @db.VarChar(20)
+  dibuat_oleh_user_id  Int
+  created_at           DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at           DateTime  @updatedAt @db.Timestamptz(6)
+
+  pengajuan              Pengajuan                 @relation(fields: [pengajuan_id], references: [id], onDelete: Restrict)
+  pembuat                User                      @relation("JadwalSeminarPembuat", fields: [dibuat_oleh_user_id], references: [id], onDelete: Restrict)
+  riwayat_jadwal_seminar RiwayatJadwalSeminar[]
+
+  @@index([pengajuan_id, status_jadwal])
+  @@unique([pengajuan_id], where: { status_jadwal: "TERJADWAL" }, map: "uq_seminar_terjadwal")
+  @@index([dibuat_oleh_user_id])
+  @@map("jadwal_seminar")
+}
+
+model RiwayatJadwalSeminar {
+  id                          BigInt    @id @default(autoincrement())
+  jadwal_seminar_id           Int
+  aksi                        String    @db.VarChar(20)
+  mulai_at_snapshot           DateTime  @db.Timestamptz(6)
+  selesai_at_snapshot         DateTime? @db.Timestamptz(6)
+  jenis_pelaksanaan_snapshot  String    @db.VarChar(10)
+  lokasi_snapshot             String?   @db.VarChar(255)
+  tautan_snapshot             String?   @db.VarChar(500)
+  keterangan_snapshot         String?   @db.Text
+  status_snapshot             String    @db.VarChar(20)
+  alasan_perubahan            String?   @db.Text
+  dilakukan_oleh_user_id      Int
+  created_at                  DateTime  @default(now()) @db.Timestamptz(6)
+
+  jadwal_seminar JadwalSeminar @relation(fields: [jadwal_seminar_id], references: [id], onDelete: Restrict)
+  pelaku         User          @relation("RiwayatSeminarPelaku", fields: [dilakukan_oleh_user_id], references: [id], onDelete: Restrict)
+
+  @@index([jadwal_seminar_id, created_at])
+  @@index([dilakukan_oleh_user_id])
+  @@map("riwayat_jadwal_seminar")
+}
+
+model Notifikasi {
+  id                   BigInt   @id @default(autoincrement())
+  kategori_notifikasi  String   @db.VarChar(40)
+  judul                String   @db.VarChar(200)
+  pesan                String   @db.Text
+  tautan_internal      String?  @db.VarChar(255)
+  dibuat_oleh_user_id  Int?
+  created_at           DateTime @default(now()) @db.Timestamptz(6)
+
+  pembuat   User?                @relation("NotifikasiPembuat", fields: [dibuat_oleh_user_id], references: [id], onDelete: Restrict)
+  penerima  NotifikasiPenerima[]
+
+  @@index([dibuat_oleh_user_id])
+  @@map("notifikasi")
+}
+
+model NotifikasiPenerima {
+  id                BigInt    @id @default(autoincrement())
+  notifikasi_id     BigInt
+  penerima_user_id  Int
+  status_dibaca     Boolean   @default(false)
+  dibaca_at         DateTime? @db.Timestamptz(6)
+  created_at        DateTime  @default(now()) @db.Timestamptz(6)
+
+  notifikasi Notifikasi @relation(fields: [notifikasi_id], references: [id], onDelete: Restrict)
+  penerima   User       @relation("NotifikasiPenerimaAkun", fields: [penerima_user_id], references: [id], onDelete: Restrict)
+
+  @@unique([notifikasi_id, penerima_user_id])
+  @@index([penerima_user_id, status_dibaca])
+  @@map("notifikasi_penerima")
+}
+
+model TemplateDokumen {
+  id                        Int      @id @default(autoincrement())
+  kode_template             String   @db.VarChar(40)
+  nama_template             String   @db.VarChar(150)
+  versi                     Int      @db.SmallInt
+  sumber_template           String   @db.VarChar(20)
+  renderer_key              String?  @db.VarChar(100)
+  file_template_dokumen_id  Int?
+  keterangan                String?  @db.Text
+  is_aktif                  Boolean  @default(true)
+  dibuat_oleh_user_id       Int
+  created_at                DateTime @default(now()) @db.Timestamptz(6)
+  updated_at                DateTime @updatedAt @db.Timestamptz(6)
+
+  file_template Dokumen? @relation("TemplateFile", fields: [file_template_dokumen_id], references: [id], onDelete: Restrict)
+  pembuat       User     @relation("TemplatePembuat", fields: [dibuat_oleh_user_id], references: [id], onDelete: Restrict)
+
+  @@unique([kode_template, versi])
+  @@index([file_template_dokumen_id])
+  @@index([dibuat_oleh_user_id])
+  @@map("template_dokumen")
+}
+
+model AturanPenyelesaianTahap {
+  id                       Int      @id @default(autoincrement())
+  tahap_akademik_id        Int
+  periode_akademik_id      Int
+  minimal_bimbingan        Int      @db.SmallInt
+  keterangan_syarat_lain   String?  @db.Text
+  is_aktif                 Boolean  @default(true)
+  ditetapkan_oleh_user_id  Int
+  created_at               DateTime @default(now()) @db.Timestamptz(6)
+  updated_at               DateTime @updatedAt @db.Timestamptz(6)
+
+  tahap_akademik   TahapAkademik       @relation(fields: [tahap_akademik_id], references: [id], onDelete: Restrict)
+  periode_akademik PeriodeAkademik    @relation(fields: [periode_akademik_id], references: [id], onDelete: Restrict)
+  penetap          User               @relation("AturanPenetap", fields: [ditetapkan_oleh_user_id], references: [id], onDelete: Restrict)
+  penyelesaian     PenyelesaianTahap[]
+
+  @@unique([tahap_akademik_id, periode_akademik_id])
+  @@index([periode_akademik_id])
+  @@index([ditetapkan_oleh_user_id])
+  @@map("aturan_penyelesaian_tahap")
 }

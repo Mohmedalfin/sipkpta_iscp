@@ -5,19 +5,41 @@
   "type": "module",
   "scripts": {
     "dev": "node --watch src/index.js",
+    "dev:supabase": "cross-env DOTENV_CONFIG_PATH=.env.supabase node --watch src/index.js",
     "start": "node src/index.js",
+    "start:supabase": "cross-env DOTENV_CONFIG_PATH=.env.supabase node src/index.js",
+    "test": "node --test",
     "prisma:generate": "prisma generate",
-    "prisma:validate": "prisma validate"
+    "prisma:validate": "prisma validate",
+    "db:seed": "prisma db seed",
+    "db:seed:tema-penelitian": "node prisma/seed-tema-penelitian.js",
+    "db:rehash-dev-passwords": "node prisma/rehash-dev-passwords.js",
+    "db:rehash-dev-passwords:reset": "node prisma/rehash-dev-passwords.js --reset",
+    "db:rehash-dev-passwords:apply": "node prisma/rehash-dev-passwords.js --apply",
+    "db:rehash-dev-passwords:reset:apply": "node prisma/rehash-dev-passwords.js --reset --apply"
   },
   "dependencies": {
-    "@prisma/adapter-pg": "7.10.0",
-    "@prisma/client": "7.10.0",
+    "@prisma/adapter-pg": "7.10.1",
+    "@prisma/client": "7.10.1",
+    "@scalar/express-api-reference": "^0.10.34",
+    "@supabase/supabase-js": "^2.109.0",
+    "archiver": "5.3.2",
+    "argon2": "0.44.0",
     "cors": "^2.8.5",
+    "csv-parse": "^7.0.3",
     "dotenv": "^16.4.7",
+    "exceljs": "^4.4.0",
     "express": "^4.21.2",
-    "pg": "^8.13.3"
+    "express-rate-limit": "8.7.0",
+    "jose": "6.2.12",
+    "multer": "^2.5.0",
+    "nodemailer": "^10.3.1",
+    "pdfjs-dist": "4.10.38",
+    "pg": "^8.13.3",
+    "swagger-jsdoc": "^6.3.0"
   },
   "devDependencies": {
-    "prisma": "7.10.0"
+    "jszip": "3.10.2",
+    "prisma": "7.10.1"
   }
 }
