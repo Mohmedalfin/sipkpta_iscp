@@ -1,8 +1,10 @@
+import TableSkeletonRows from '../../components/common/TableSkeletonRows.jsx';
+import TableEmptyState, { TableErrorState } from '../../components/common/TableEmptyState.jsx';
+import ErrorBanner from '../../components/common/ErrorBanner.jsx';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   IconArrowRight,
   IconClipboardCheck,
-  IconExclamationCircle,
   IconInformationCircle,
 } from '../../components/common/Icons.jsx';
 import QueueSummaryCards from '../../components/admin-prodi/verifikasi-data-diri/QueueSummaryCards.jsx';
@@ -28,41 +30,6 @@ function formatDate(isoString) {
   } catch {
     return isoString;
   }
-}
-
-/**
- * Skeleton placeholder rows for initial load to prevent layout shifts.
- */
-function TableSkeletonRows({ count = 5 }) {
-  return (
-    <>
-      {Array.from({ length: count }).map((_, i) => (
-        <tr key={i} className="animate-pulse border-b border-slate-900/[0.04]">
-          <td className="py-4 pl-6 pr-3">
-            <div className="space-y-1.5 max-w-[200px]">
-              <div className="h-3.5 bg-slate-200/70 rounded w-4/5" />
-              <div className="h-2.5 bg-slate-200/50 rounded w-1/2" />
-            </div>
-          </td>
-          <td className="py-4 px-3">
-            <div className="space-y-1.5 max-w-[130px]">
-              <div className="h-2.5 bg-slate-200/60 rounded w-full" />
-              <div className="h-1.5 bg-slate-200/40 rounded-full w-full" />
-            </div>
-          </td>
-          <td className="py-4 px-3">
-            <div className="h-6 w-28 bg-slate-200/60 rounded-full" />
-          </td>
-          <td className="py-4 px-3">
-            <div className="h-3 w-20 bg-slate-200/50 rounded" />
-          </td>
-          <td className="py-4 pl-3 pr-8 text-right">
-            <div className="h-7 w-28 bg-slate-200/60 rounded-xl inline-block" />
-          </td>
-        </tr>
-      ))}
-    </>
-  );
 }
 
 export default function VerifikasiDataDiriPage() {
@@ -219,7 +186,7 @@ export default function VerifikasiDataDiriPage() {
   const isSearchActive = searchInput !== activeSearch || (isFetching && Boolean(activeSearch));
 
   return (
-    <div className="mx-auto w-full max-w-7xl space-y-3">
+    <div className="mx-auto w-full max-w-7xl 2xl:max-w-screen-2xl space-y-6">
       {/* 1. Header Halaman */}
       <div className="border-b border-slate-900/[0.06] pb-5">
         <span className="text-[11px] font-bold uppercase tracking-wider text-muted">
@@ -253,15 +220,22 @@ export default function VerifikasiDataDiriPage() {
         counts={counts}
       />
 
+      {/* Error Banner jika fetch gagal */}
+      {error && (
+        <ErrorBanner
+          title="Gagal Memuat Verifikasi Data Diri"
+          message={error}
+          onRetry={loadStudentList}
+        />
+      )}
+
       {/* 4. Toolbar: Search Bar, Filter Tabs & Actions */}
       <VerificationToolbar
         searchInput={searchInput}
         isSearchActive={isSearchActive}
         onSearchChange={handleSearchChange}
         onClearSearch={handleClearSearch}
-        onRefresh={() => {
-          loadStudentList();
-        }}
+        onRefresh={loadStudentList}
         isFetching={isFetching}
         activeStatus={activeStatus}
         onSelectStatusFilter={handleSelectStatusFilter}
@@ -282,7 +256,7 @@ export default function VerifikasiDataDiriPage() {
               <col className="w-[19%]" />
             </colgroup>
             <thead>
-              <tr className="border-b border-slate-900/[0.08] bg-slate-50/80 text-[11px] font-mono font-bold uppercase tracking-wider text-muted">
+              <tr className="border-b border-slate-900/[0.08] bg-slate-50/70 text-[10px] font-bold uppercase tracking-wider text-secondary">
                 <th scope="col" className="py-3.5 pl-6 pr-3">Mahasiswa</th>
                 <th scope="col" className="py-3.5 px-3">Kelengkapan Berkas</th>
                 <th scope="col" className="py-3.5 px-3">Status Verifikasi</th>
@@ -292,48 +266,24 @@ export default function VerifikasiDataDiriPage() {
             </thead>
             <tbody className="divide-y divide-slate-900/[0.06]">
               {initialLoading ? (
-                <TableSkeletonRows count={5} />
+                <TableSkeletonRows count={5} columns={5} />
               ) : error ? (
-                <tr>
-                  <td colSpan={5} className="py-16 text-center">
-                    <IconExclamationCircle className="size-10 text-danger mx-auto mb-2" />
-                    <p className="text-sm font-bold text-ink">Gagal Menampilkan Data</p>
-                    <p className="text-xs text-secondary mt-1">{error}</p>
-                    <button
-                      type="button"
-                      onClick={loadStudentList}
-                      className="mt-4 rounded-xl bg-brand text-white px-4 py-2 text-xs font-bold hover:bg-brand-hover transition-colors cursor-pointer"
-                    >
-                      Coba Lagi
-                    </button>
-                  </td>
-                </tr>
+                <TableErrorState colSpan={5} error={error} onRetry={loadStudentList} />
               ) : students.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="py-16 text-center">
-                    <div className="size-12 rounded-2xl bg-slate-100 border border-slate-200 flex items-center justify-center mx-auto mb-3 text-slate-400">
-                      <IconClipboardCheck className="size-6" />
-                    </div>
-                    <p className="text-sm font-bold text-ink">Tidak Ada Mahasiswa Ditemukan</p>
-                    <p className="text-xs text-secondary mt-1 max-w-sm mx-auto">
-                      {activeSearch || activeStatus
-                        ? 'Tidak ada data mahasiswa yang cocok dengan kriteria pencarian atau filter yang dipilih.'
-                        : 'Saat ini belum ada data mahasiswa yang terdaftar dalam program studi.'}
-                    </p>
-                    {(activeSearch || activeStatus) && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          handleClearSearch();
-                          setActiveStatus('');
-                        }}
-                        className="mt-4 rounded-xl border border-slate-300 bg-white px-4 py-2 text-xs font-bold text-secondary hover:bg-slate-50 transition-colors cursor-pointer"
-                      >
-                        Reset Semua Filter
-                      </button>
-                    )}
-                  </td>
-                </tr>
+                <TableEmptyState
+                  colSpan={5}
+                  icon={IconClipboardCheck}
+                  title="Belum ada data mahasiswa"
+                  description="Saat ini belum ada data mahasiswa yang terdaftar dalam antrean verifikasi program studi."
+                  filteredTitle="Data mahasiswa tidak ditemukan"
+                  filteredDescription="Tidak ada data mahasiswa yang cocok dengan kriteria pencarian atau filter yang dipilih."
+                  hasActiveFilter={Boolean(activeSearch || activeStatus)}
+                  onResetFilter={() => {
+                    handleClearSearch();
+                    setActiveStatus('');
+                    setPage(1);
+                  }}
+                />
               ) : (
                 students.map((student, index) => {
                   const isComplete = student.lengkap;

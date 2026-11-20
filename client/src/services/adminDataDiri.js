@@ -33,19 +33,19 @@ export async function fetchAdminDataDiriList({
 /**
  * Mengambil detail lengkap verifikasi data diri mahasiswa dan 6 dokumen wajib.
  */
-export async function fetchAdminDataDiriDetail(mahasiswaId) {
-  const response = await api.get(`/api/admin-prodi/verifikasi-data-diri/${encodeURIComponent(mahasiswaId)}`);
+export async function fetchAdminDataDiriDetail(mahasiswaId, { signal } = {}) {
+  const response = await api.get(`/api/admin-prodi/verifikasi-data-diri/${encodeURIComponent(mahasiswaId)}`, { signal });
   return response.data.data;
 }
 
 /**
  * Mengambil blob stream file PDF dokumen mahasiswa.
  */
-export async function fetchAdminDataDiriDocumentFile(mahasiswaId, kodeJenis) {
+export async function fetchAdminDataDiriDocumentFile(mahasiswaId, kodeJenis, { signal } = {}) {
   const response = await api.get(
     `/api/admin-prodi/verifikasi-data-diri/${encodeURIComponent(mahasiswaId)}/dokumen/${encodeURIComponent(kodeJenis)}/file`,
     {
-      responseType: 'blob',
+      responseType: 'blob', signal,
     },
   );
   return response.data;

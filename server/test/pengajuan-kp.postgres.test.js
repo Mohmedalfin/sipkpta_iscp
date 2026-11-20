@@ -1242,10 +1242,18 @@ test('D2, E, F, G, dan H Pengajuan KP berjalan atomik pada PostgreSQL TEST teris
         { pengajuan_id: applicationD, dosen_id: lecturer.id,
           expected_dokumen_pengajuan_id: readyD.proposal_terkini.id },
       ] };
+      const beforeFinalizationEvents = studentEvents.length;
       const concurrentH = await Promise.all([1, 2].map(() => kaprodiRequest(base,
         kaprodiToken, '/pembimbing-kp/bulk', { method: 'POST', body: bulkHBody })));
       assert.deepEqual(concurrentH.map((row) => row.status).sort(), [200, 200]);
       assert.deepEqual(concurrentH.map((row) => row.body.data.created).sort(), [0, 3]);
+      assert.equal(studentEvents.length, beforeFinalizationEvents + 1,
+        'Finalisasi concurrent hanya menerbitkan satu event pengajuan pemilik.');
+      const finalizationSummary = (await kaprodiRequest(base, kaprodiToken,
+        '/pengajuan-kp/finalisasi?limit=1')).body.data;
+      assert.equal(finalizationSummary.summary.total, finalizationSummary.pagination.total);
+      assert.equal(finalizationSummary.summary.belumSiap + finalizationSummary.summary.siapDitetapkan +
+        finalizationSummary.summary.sudahDitetapkan, finalizationSummary.summary.total);
       assert.equal(await prisma.penugasanDosen.count({ where: {
         pengajuan_id: { in: [applicationA, applicationB, applicationD] },
         jenis_penugasan: 'PEMBIMBING', status_penugasan: 'AKTIF',

@@ -164,6 +164,7 @@ export default function SchedulePanel() {
         onAdd={() => form.openCreate(initial)}
         addLabel="Tambah Jadwal"
         onRefresh={list.refresh}
+        refreshing={list.refreshing}
         badgeCount={list.pagination?.total_items ?? list.data.length}
         kicker="PENANGGALAN PROSES"
       />

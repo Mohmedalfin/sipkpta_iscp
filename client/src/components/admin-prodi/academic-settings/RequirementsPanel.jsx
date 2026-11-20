@@ -151,6 +151,7 @@ export default function RequirementsPanel() {
         onAdd={kp && eligible.length ? openCreate : undefined}
         addLabel="Tambah Persyaratan KP"
         onRefresh={list.refresh}
+        refreshing={list.refreshing}
         badgeCount={list.pagination?.total_items ?? list.data.length}
         kicker="PERSYARATAN BERKAS"
       />

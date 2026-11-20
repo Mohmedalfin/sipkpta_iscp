@@ -1,3 +1,4 @@
+import useModalCandidates from '../../../hooks/useModalCandidates.js';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
@@ -24,7 +25,6 @@ import {
   deactivateApplicationReviewer,
   downloadProposalDocument,
   fetchKaprodiKpDetail,
-  fetchReviewerCandidates,
   kaprodiReviewerKpErrorMessage,
   replaceApplicationReviewer,
 } from '../../../services/kaprodiReviewerKp.js';
@@ -95,13 +95,19 @@ export default function AssignReviewerModal({
   onNextStudent,
 }) {
   const toast = useToast();
+  const mutationInFlight = useRef(false);
+  const currentContext = useRef(null);
+  currentContext.current = open ? pengajuanId : null;
   const queryClient = useQueryClient();
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [detail, setDetail] = useState(null);
-  const [candidates, setCandidates] = useState([]);
+  const candidateQuery = useModalCandidates('reviewer', open, pengajuanId);
+  const candidates = candidateQuery.data?.items ?? [];
+  const candidatesUnavailable = candidateQuery.isPending || candidateQuery.isError;
   const detailRequestIdRef = useRef(0);
+  const requestController = useRef(null);
 
   // Form State Penugasan Baru
   const [selectedDosenId, setSelectedDosenId] = useState('');
@@ -135,19 +141,22 @@ export default function AssignReviewerModal({
    */
   const loadDetailAndCandidates = useCallback(async () => {
     if (!pengajuanId) return;
+    requestController.current?.abort();
+    const controller = new AbortController();
+    requestController.current = controller;
     const requestId = ++detailRequestIdRef.current;
 
     setLoading(true);
     setError('');
     setDetail(null);
-    setCandidates([]);
+
 
     try {
-      const [detailData, candidateData] = await Promise.all([
-        queryClient.fetchQuery({ queryKey: ['kaprodi-kp-detail', pengajuanId],
-          queryFn: ({ signal }) => fetchKaprodiKpDetail(pengajuanId, { signal }), staleTime: 0 }),
-        fetchReviewerCandidates({ limit: 100, pengajuan_id: pengajuanId }),
-      ]);
+      const detailData = await queryClient.fetchQuery({
+        queryKey: ['kaprodi-kp-detail', pengajuanId], staleTime: 0,
+        queryFn: ({ signal }) => fetchKaprodiKpDetail(pengajuanId,
+          { signal: AbortSignal.any([signal, controller.signal]) }),
+      });
       if (requestId !== detailRequestIdRef.current) return;
       if (detailData?.id == null || String(detailData.id) !== String(pengajuanId)) {
         setError('Detail pengajuan tidak tersedia. Coba lagi.');
@@ -155,7 +164,7 @@ export default function AssignReviewerModal({
       }
 
       setDetail(detailData);
-      setCandidates(candidateData?.items || []);
+
     } catch (err) {
       if (requestId !== detailRequestIdRef.current) return;
       const message = kaprodiReviewerKpErrorMessage(
@@ -181,10 +190,12 @@ export default function AssignReviewerModal({
       detailRequestIdRef.current += 1;
       setLoading(true);
       setDetail(null);
-      setCandidates([]);
+
     }
-    return () => { detailRequestIdRef.current += 1; };
+    return () => { detailRequestIdRef.current += 1; requestController.current?.abort(); };
   }, [open, pengajuanId, loadDetailAndCandidates]);
+
+  const mutating = submittingAssign || submittingReplace || submittingDeactivate;
 
   if (!open) return null;
 
@@ -224,11 +235,14 @@ export default function AssignReviewerModal({
   // Handler Submit Penugasan Baru
   const handleAssignReviewer = async (e) => {
     e.preventDefault();
+    if (candidatesUnavailable) return;
     if (!selectedDosenId) {
       toast.warning('Pilih salah satu dosen reviewer terlebih dahulu.');
       return;
     }
 
+    if (mutationInFlight.current || !detail || String(detail.id) !== String(pengajuanId)) return;
+    mutationInFlight.current = true;
     setSubmittingAssign(true);
     setError('');
 
@@ -236,13 +250,15 @@ export default function AssignReviewerModal({
       await assignApplicationReviewers(pengajuanId, [Number(selectedDosenId)]);
       toast.success('Dosen Reviewer berhasil ditugaskan.');
       setSelectedDosenId('');
-      await loadDetailAndCandidates();
+      if (currentContext.current === pengajuanId) await loadDetailAndCandidates();
+      void candidateQuery.refetch({ cancelRefetch: false });
       if (onSuccess) onSuccess();
     } catch (err) {
       const message = kaprodiReviewerKpErrorMessage(err, 'Gagal menugaskan reviewer.');
       setError(message);
       toast.error(message);
     } finally {
+      mutationInFlight.current = false;
       setSubmittingAssign(false);
     }
   };
@@ -250,6 +266,7 @@ export default function AssignReviewerModal({
   // Handler Submit Pergantian Reviewer
   const handleReplaceReviewer = async (e) => {
     e.preventDefault();
+    if (candidatesUnavailable) return;
     if (!replacementDosenId) {
       toast.warning('Pilih dosen pengganti terlebih dahulu.');
       return;
@@ -259,6 +276,8 @@ export default function AssignReviewerModal({
       return;
     }
 
+    if (mutationInFlight.current || !detail || String(detail.id) !== String(pengajuanId)) return;
+    mutationInFlight.current = true;
     setSubmittingReplace(true);
     setError('');
 
@@ -271,13 +290,15 @@ export default function AssignReviewerModal({
       setReplaceState({ open: false, penugasanId: null, currentDosenName: '', currentDosenId: null });
       setReplacementDosenId('');
       setReplaceReason('');
-      await loadDetailAndCandidates();
+      if (currentContext.current === pengajuanId) await loadDetailAndCandidates();
+      void candidateQuery.refetch({ cancelRefetch: false });
       if (onSuccess) onSuccess();
     } catch (err) {
       const message = kaprodiReviewerKpErrorMessage(err, 'Gagal mengganti reviewer.');
       setError(message);
       toast.error(message);
     } finally {
+      mutationInFlight.current = false;
       setSubmittingReplace(false);
     }
   };
@@ -290,6 +311,8 @@ export default function AssignReviewerModal({
       return;
     }
 
+    if (mutationInFlight.current || !detail || String(detail.id) !== String(pengajuanId)) return;
+    mutationInFlight.current = true;
     setSubmittingDeactivate(true);
     setError('');
 
@@ -298,13 +321,15 @@ export default function AssignReviewerModal({
       toast.success('Penugasan reviewer dinonaktifkan.');
       setDeactivateState({ open: false, penugasanId: null, currentDosenName: '' });
       setDeactivateReason('');
-      await loadDetailAndCandidates();
+      if (currentContext.current === pengajuanId) await loadDetailAndCandidates();
+      void candidateQuery.refetch({ cancelRefetch: false });
       if (onSuccess) onSuccess();
     } catch (err) {
       const message = kaprodiReviewerKpErrorMessage(err, 'Gagal menonaktifkan reviewer.');
       setError(message);
       toast.error(message);
     } finally {
+      mutationInFlight.current = false;
       setSubmittingDeactivate(false);
     }
   };
@@ -370,7 +395,7 @@ export default function AssignReviewerModal({
               <div className="flex items-center rounded-lg border border-slate-900/10 bg-slate-50 p-0.5 text-xs">
                 <button
                   type="button"
-                  disabled={queueIndex <= 1 || loading}
+                  disabled={queueIndex <= 1 || loading || mutating}
                   onClick={onPrevStudent}
                   className="p-1 rounded hover:bg-white text-secondary disabled:opacity-30 disabled:hover:bg-transparent cursor-pointer"
                   title="Pengajuan Sebelumnya"
@@ -382,7 +407,7 @@ export default function AssignReviewerModal({
                 </span>
                 <button
                   type="button"
-                  disabled={queueIndex >= queueTotal || loading}
+                  disabled={queueIndex >= queueTotal || loading || mutating}
                   onClick={onNextStudent}
                   className="p-1 rounded hover:bg-white text-secondary disabled:opacity-30 disabled:hover:bg-transparent cursor-pointer"
                   title="Pengajuan Berikutnya"
@@ -394,7 +419,8 @@ export default function AssignReviewerModal({
 
             <button
               type="button"
-              onClick={onClose}
+              onClick={() => { if (!mutationInFlight.current) onClose(); }}
+                disabled={mutating}
               className="size-8 rounded-full border border-slate-900/10 hover:bg-slate-100 flex items-center justify-center text-muted hover:text-ink transition-colors cursor-pointer"
               aria-label="Tutup modal"
             >
@@ -405,6 +431,11 @@ export default function AssignReviewerModal({
 
         {/* 2. Modal Body */}
         <div className="p-5 overflow-y-auto [scrollbar-gutter:stable] space-y-5 flex-1 bg-slate-50/40">
+          {candidateQuery.isPending && <p role="status" className="text-xs text-muted">Memuat kandidat dosen...</p>}
+          {candidateQuery.isError && <div role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
+            <p>{kaprodiReviewerKpErrorMessage(candidateQuery.error, 'Kandidat dosen belum dapat dimuat.')}</p>
+            <button type="button" className="mt-1 font-semibold underline" onClick={() => candidateQuery.refetch()}>Coba lagi</button>
+          </div>}
           {error && (
             <div
               role="alert"
@@ -676,14 +707,14 @@ export default function AssignReviewerModal({
                         onClick={() =>
                           setReplaceState({ open: false, penugasanId: null, currentDosenName: '', currentDosenId: null })
                         }
-                        disabled={submittingReplace}
+                        disabled={submittingReplace || candidatesUnavailable}
                         className="rounded-lg border border-slate-900/10 bg-white px-3 py-1.5 text-xs font-semibold text-secondary hover:bg-slate-50 cursor-pointer"
                       >
                         Batal
                       </button>
                       <button
                         type="submit"
-                        disabled={submittingReplace}
+                        disabled={submittingReplace || candidatesUnavailable}
                         className="inline-flex items-center gap-1.5 rounded-lg bg-brand hover:bg-brand-hover text-white px-3 py-1.5 text-xs font-semibold shadow-xs cursor-pointer disabled:opacity-50"
                       >
                         {submittingReplace && <IconSpinner className="size-3 animate-spin text-white" />}
@@ -786,7 +817,7 @@ export default function AssignReviewerModal({
                     </span>
                     <button
                       type="submit"
-                      disabled={!selectedDosenId || submittingAssign}
+                      disabled={!selectedDosenId || submittingAssign || candidatesUnavailable}
                       className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-brand hover:bg-brand-hover text-white px-4 py-2 text-xs font-semibold shadow-xs transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap shrink-0 self-end sm:self-auto"
                     >
                       {submittingAssign ? (
@@ -855,7 +886,8 @@ export default function AssignReviewerModal({
 
           <button
             type="button"
-            onClick={onClose}
+            onClick={() => { if (!mutationInFlight.current) onClose(); }}
+                disabled={mutating}
             className="rounded-xl border border-slate-900/10 bg-white hover:bg-slate-50 px-4 py-2 text-xs font-semibold text-secondary hover:text-ink transition-colors cursor-pointer"
           >
             Tutup

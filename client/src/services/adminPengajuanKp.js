@@ -99,9 +99,9 @@ export async function fetchAdminKpDetail(id, { signal } = {}) {
  * @param {number|string} dokumenId - ID Dokumen Pengajuan
  * @returns {Promise<Blob>} Binary PDF blob
  */
-export async function downloadAdminKpDocumentFile(id, dokumenId) {
+export async function downloadAdminKpDocumentFile(id, dokumenId, { signal } = {}) {
   const response = await api.get(`${BASE_PATH}/${id}/dokumen/${dokumenId}/file`, {
-    responseType: 'blob',
+    responseType: 'blob', signal,
   });
   return response.data;
 }

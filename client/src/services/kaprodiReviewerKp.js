@@ -129,14 +129,14 @@ export async function fetchKaprodiKpDetail(id, { signal } = {}) {
  * @param {number} [params.pengajuan_id]
  * @returns {Promise<{ items: Array, pagination: object }>}
  */
-export async function fetchReviewerCandidates(params = {}) {
+export async function fetchReviewerCandidates(params = {}, { signal } = {}) {
   const cleanParams = {};
   if (params.page) cleanParams.page = Number(params.page);
   if (params.limit) cleanParams.limit = Number(params.limit);
   if (params.q?.trim()) cleanParams.q = params.q.trim();
   if (params.pengajuan_id) cleanParams.pengajuan_id = Number(params.pengajuan_id);
 
-  const response = await api.get('/api/kaprodi/kandidat-reviewer', { params: cleanParams });
+  const response = await api.get('/api/kaprodi/kandidat-reviewer', { params: cleanParams, signal });
   return response.data?.data || { items: [], pagination: { page: 1, limit: 20, total: 0, total_pages: 1 } };
 }
 

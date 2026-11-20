@@ -1,3 +1,4 @@
+import RefreshButton from '../../components/common/RefreshButton.jsx';
 import { useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import useKpReviews from '../../hooks/useKpReviews.js';
@@ -23,12 +24,13 @@ import {
 } from '../../components/mahasiswa/pengajuan-kp/index.js';
 import KpAdministrativeRevision from '../../components/mahasiswa/pengajuan-kp/KpAdministrativeRevision.jsx';
 import KpApplicationHistory from '../../components/mahasiswa/pengajuan-kp/KpApplicationHistory.jsx';
-import { buildKpFormPayload, selectKpApplication, validateKpDraftNumbers } from '../../utils/kpForm.js';
+import { buildKpFormPayload, canRefreshKpTracking, selectKpApplication, validateKpDraftNumbers } from '../../utils/kpForm.js';
 import {
   KP_STATUS_PENGAJUAN,
   createKpDraft,
   getKpApplicationDetail,
   getKpFormOptions,
+  getKpReviews,
   listAllOwnKpApplications,
   pengajuanKpErrorMessage,
   submitKpApplication,
@@ -59,6 +61,8 @@ export default function PengajuanKpPage() {
   // State Utama Halaman
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const refreshInFlight = useRef(false);
 
   // Data Master & Opsi Form dari Backend
   const [opsiForm, setOpsiForm] = useState(null);
@@ -289,12 +293,36 @@ export default function PengajuanKpPage() {
     }
   };
 
+  const isEditingApplication = !canRefreshKpTracking(activePengajuan);
+
+  async function refreshTracking() {
+    if (isEditingApplication || refreshInFlight.current || isSavingDraft || isSubmitting) return;
+    refreshInFlight.current = true;
+    setRefreshing(true);
+    const id = activePengajuan.id;
+    const sequence = loadSequence.current;
+    try {
+      const [detail] = await Promise.all([
+        queryClient.fetchQuery({ queryKey: ['kp-detail', id], staleTime: 0,
+          queryFn: ({ signal }) => getKpApplicationDetail(id, { signal }) }),
+        queryClient.fetchQuery({ queryKey: ['kp-reviews', id], staleTime: 0,
+          queryFn: ({ signal }) => getKpReviews(id, { signal }) }),
+      ]);
+      if (sequence === loadSequence.current) setActivePengajuan(detail);
+    } catch (err) {
+      toast.error(pengajuanKpErrorMessage(err, 'Gagal menyegarkan pengajuan.'));
+    } finally {
+      refreshInFlight.current = false;
+      setRefreshing(false);
+    }
+  }
+
   // =========================================================================
   // RENDER: Loading Skeleton
   // =========================================================================
   if (loading) {
     return (
-      <div className="mx-auto w-full max-w-7xl space-y-6 animate-pulse" role="status">
+      <div className="mx-auto w-full max-w-7xl 2xl:max-w-screen-2xl space-y-6 animate-pulse" role="status">
         <div className="border-b border-line pb-5">
           <div className="h-3 w-32 rounded bg-subtle" />
           <div className="mt-2 h-7 w-64 rounded bg-subtle" />
@@ -350,7 +378,7 @@ export default function PengajuanKpPage() {
   const dokumenList = activePengajuan?.dokumen_pengajuan || [];
 
   return (
-    <div className="mx-auto w-full max-w-7xl space-y-6">
+    <div className="mx-auto w-full max-w-7xl 2xl:max-w-screen-2xl space-y-6">
       {/* ============================================================ */}
       {/* Header Halaman                                               */}
       {/* ============================================================ */}
@@ -368,29 +396,25 @@ export default function PengajuanKpPage() {
             </p>
           </div>
 
+          {!isEditingApplication && (
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={loadPageData}
-              disabled={loading}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-white px-3 py-1.5 text-xs font-semibold text-secondary shadow-xs hover:bg-subtle focus:outline-hidden"
-              title="Segarkan data pengajuan"
-            >
-              <IconRefresh className="size-3.5" />
-              Segarkan
-            </button>
+            <RefreshButton onRefresh={refreshTracking} refreshing={refreshing}
+              disabled={isSavingDraft || isSubmitting} title="Segarkan data pengajuan" />
           </div>
+          )}
         </div>
       </div>
 
       {/* ============================================================ */}
       {/* 1. Banner Jadwal Akademik & Prasyarat Data Diri              */}
       {/* ============================================================ */}
-      <KpScheduleBanner
-        jadwal={opsiForm?.jadwal}
-        dataDiri={opsiForm?.data_diri}
-        loading={loading}
-      />
+      {!isSubmittedState && (
+        <KpScheduleBanner
+          jadwal={opsiForm?.jadwal}
+          dataDiri={opsiForm?.data_diri}
+          loading={loading}
+        />
+      )}
 
       {error && activePengajuan && <p role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
         {error} Pengajuan yang sudah tersimpan tetap dapat dilihat di bawah.
@@ -409,6 +433,8 @@ export default function PengajuanKpPage() {
             reviews={reviews}
             reviewError={reviewError}
             onRefresh={loadPageData}
+            jadwal={opsiForm?.jadwal}
+            dataDiri={opsiForm?.data_diri}
           />
           {activePengajuan.status_pengajuan === KP_STATUS_PENGAJUAN.DIAJUKAN &&
             (activePengajuan.status_pemeriksaan_berkas === 'BELUM_OK' ||

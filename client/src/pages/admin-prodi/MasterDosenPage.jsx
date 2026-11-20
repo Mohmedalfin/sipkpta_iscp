@@ -8,6 +8,7 @@ import {
   IconUserPlus,
 } from '../../components/common/Icons.jsx';
 import ConfirmDialog from '../../components/common/ConfirmDialog.jsx';
+import ErrorBanner from '../../components/common/ErrorBanner.jsx';
 import DosenSummaryCards from '../../components/admin-prodi/master-dosen/DosenSummaryCards.jsx';
 import DosenToolbar from '../../components/admin-prodi/master-dosen/DosenToolbar.jsx';
 import DosenTable from '../../components/admin-prodi/master-dosen/DosenTable.jsx';
@@ -29,6 +30,8 @@ export default function MasterDosenPage() {
   // State Data & Loading
   const [initialLoading, setInitialLoading] = useState(true);
   const [isFetching, setIsFetching] = useState(false);
+  const [error, setError] = useState('');
+  const [loadedListKey, setLoadedListKey] = useState(null);
   const [lecturers, setLecturers] = useState([]);
   const [pagination, setPagination] = useState({
     page: 1,
@@ -104,6 +107,8 @@ export default function MasterDosenPage() {
     setPage(1);
   };
 
+  const listKey = JSON.stringify([page, activeSearch]);
+
   // Main list fetch
   const loadDosenList = useCallback(async () => {
     const currentSeq = ++requestSeqRef.current;
@@ -121,6 +126,8 @@ export default function MasterDosenPage() {
 
       if (currentSeq !== requestSeqRef.current) return;
 
+      setError('');
+      setLoadedListKey(listKey);
       setLecturers(response.items || []);
       if (response.summary) setCounts(response.summary);
       setPagination(
@@ -135,6 +142,7 @@ export default function MasterDosenPage() {
       if (currentSeq !== requestSeqRef.current) return;
       if (err.code === 'ERR_CANCELED') return;
       const msg = dosenErrorMessage(err, 'Gagal memuat daftar data dosen.');
+      setError(msg);
       toast.error(msg);
     } finally {
       if (currentSeq === requestSeqRef.current) {
@@ -142,7 +150,7 @@ export default function MasterDosenPage() {
         setIsFetching(false);
       }
     }
-  }, [page, activeSearch, toast]);
+  }, [page, activeSearch, listKey, toast]);
 
   useEffect(() => {
     loadDosenList();
@@ -286,7 +294,7 @@ export default function MasterDosenPage() {
   const isSearchActive = searchInput !== activeSearch || (isFetching && Boolean(activeSearch));
 
   return (
-    <div className="mx-auto w-full max-w-7xl space-y-4">
+    <div className="mx-auto w-full max-w-7xl 2xl:max-w-screen-2xl space-y-6">
       {/* 1. Header Halaman & Action Bar (Sesuai Referensi-4) */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-900/[0.06] pb-5">
         <div>
@@ -349,17 +357,29 @@ export default function MasterDosenPage() {
         isSearchActive={isSearchActive}
         onSearchChange={handleSearchChange}
         onClearSearch={handleClearSearch}
-        onRefresh={() => {
-          loadDosenList();
-        }}
+        onRefresh={loadDosenList}
         isFetching={isFetching}
         totalItems={pagination.total_items}
       />
 
+      {/* Error Banner jika fetch gagal */}
+      {error && (
+        <ErrorBanner
+          title="Gagal Memuat Data Dosen"
+          message={error}
+          onRetry={loadDosenList}
+        />
+      )}
+
       {/* 5. Tabel Data Dosen */}
       <DosenTable
+        refreshing={isFetching}
         lecturers={lecturers}
-        loading={initialLoading || isFetching}
+        loading={initialLoading || (isFetching && loadedListKey !== listKey)}
+        error={error}
+        onRetry={loadDosenList}
+        hasActiveFilter={Boolean(activeSearch)}
+        onResetFilter={handleClearSearch}
         onView={handleViewLecturer}
         onEdit={handleEditLecturer}
         onToggleStatus={handleToggleStatus}

@@ -69,6 +69,7 @@ export default function ReviewWorkspaceModal({
   const ref = useRef(null);
   const [busy, setBusy] = useState(false);
   const [version, setVersion] = useState(0);
+  const [pdfVersion, setPdfVersion] = useState(0);
   const [mobileTab, setMobileTab] = useState('preview'); // 'preview' | 'review'
 
   const [state, setState] = useState({
@@ -78,6 +79,7 @@ export default function ReviewWorkspaceModal({
     url: '',
     error: '',
     pdfError: '',
+    pdfLoading: true,
   });
 
   useFocusTrap(ref, true, () => {
@@ -86,51 +88,33 @@ export default function ReviewWorkspaceModal({
 
   useEffect(() => {
     const controller = new AbortController();
-    let url = '';
-    setState({
-      loading: true,
-      detail: null,
-      blob: null,
-      url: '',
-      error: '',
-      pdfError: '',
+    setState({ loading: true, detail: null, blob: null, url: '', error: '', pdfError: '', pdfLoading: true });
+    fetchReviewerTask(id, { signal: controller.signal }).then((detail) => {
+      if (!controller.signal.aborted) setState((old) => ({ ...old, loading: false, detail }));
+    }).catch(async (error) => {
+      if (controller.signal.aborted) return;
+      const message = await reviewerError(error);
+      if (!controller.signal.aborted) setState((old) => ({ ...old, loading: false, error: message }));
     });
-
-    async function load() {
-      try {
-        const detail = await fetchReviewerTask(id, { signal: controller.signal });
-        let blob = null;
-        let pdfError = '';
-        try {
-          blob = await fetchReviewerPdf(id, { signal: controller.signal });
-        } catch (error) {
-          pdfError = await reviewerError(error);
-        }
-        if (controller.signal.aborted) return;
-        url = blob ? URL.createObjectURL(blob) : '';
-        setState({
-          loading: false,
-          detail,
-          blob,
-          url,
-          error: '',
-          pdfError,
-        });
-      } catch (error) {
-        const message = await reviewerError(error);
-        if (!controller.signal.aborted) {
-          setState((old) => ({ ...old, loading: false, error: message }));
-        }
-      }
-    }
-
-    load();
-
-    return () => {
-      controller.abort();
-      if (url) URL.revokeObjectURL(url);
-    };
+    return () => controller.abort();
   }, [id, version]);
+
+  useEffect(() => {
+    if (state.loading || state.error || !state.detail || String(state.detail.pengajuan_id) !== String(id)) return;
+    const controller = new AbortController();
+    let url = '';
+    setState((old) => ({ ...old, pdfLoading: true, pdfError: '', url: '', blob: null }));
+    fetchReviewerPdf(id, { signal: controller.signal }).then((blob) => {
+      if (controller.signal.aborted) return;
+      url = URL.createObjectURL(blob);
+      setState((old) => ({ ...old, pdfLoading: false, blob, url }));
+    }).catch(async (error) => {
+      if (controller.signal.aborted) return;
+      const message = await reviewerError(error);
+      if (!controller.signal.aborted) setState((old) => ({ ...old, pdfLoading: false, pdfError: message }));
+    });
+    return () => { controller.abort(); if (url) URL.revokeObjectURL(url); };
+  }, [id, pdfVersion, state.loading, state.error, state.detail]);
 
   function saved() {
     onSaved();
@@ -161,7 +145,7 @@ export default function ReviewWorkspaceModal({
     >
       <div
         ref={ref}
-        className="relative w-full max-w-7xl h-[94vh] sm:h-[92vh] max-h-[920px] rounded-[20px] sm:rounded-[24px] border border-slate-900/[0.12] bg-white flex flex-col overflow-hidden shadow-2xl text-ink"
+        className="relative w-full max-w-7xl 2xl:max-w-screen-2xl h-[94vh] sm:h-[92vh] max-h-[920px] 2xl:max-h-[980px] rounded-[20px] sm:rounded-[24px] border border-slate-900/[0.12] bg-white flex flex-col overflow-hidden shadow-2xl text-ink"
       >
         {/* ================= 1. MODAL TOP HEADER ================= */}
         <div className="flex items-center justify-between gap-3 px-4 sm:px-6 py-3.5 sm:py-4 bg-white border-b border-slate-900/[0.08] shrink-0">
@@ -327,14 +311,19 @@ export default function ReviewWorkspaceModal({
 
                 {/* PDF Viewer Canvas */}
                 <div className="flex-1 min-h-0 overflow-y-auto p-3 sm:p-4">
-                  {state.pdfError ? (
+                  {state.pdfLoading ? (
+                    <div role="status" className="flex h-full min-h-64 items-center justify-center gap-2 text-xs text-muted">
+                      <IconSpinner className="size-5 motion-safe:animate-spin text-brand" />
+                      Memuat proposal PDF?
+                    </div>
+                  ) : state.pdfError ? (
                     <div className="h-full flex flex-col items-center justify-center p-8 text-center rounded-xl border border-slate-900/10 bg-white">
                       <IconExclamationCircle className="size-8 text-rose-500 mb-2" />
                       <p className="text-xs font-bold text-ink">Pratinjau PDF Tidak Dapat Dimuat</p>
                       <p className="text-[11px] text-muted mt-1 max-w-sm">{state.pdfError}</p>
                       <button
                         type="button"
-                        onClick={() => setVersion((v) => v + 1)}
+                        onClick={() => setPdfVersion((v) => v + 1)}
                         className="mt-3 text-xs text-brand font-semibold hover:underline cursor-pointer"
                       >
                         Coba muat ulang berkas

@@ -1,3 +1,4 @@
+import { afterKpChange } from './realtime.service.js';
 import { createNotifikasi, studentRecipient } from './notifikasi.service.js';
 import { authorizedProdiId } from './mahasiswa.service.js';
 import { serializable } from './pengajuan-kp.service.js';
@@ -126,7 +127,10 @@ export async function listFinalisasiKp(prisma, actorUserId, query) {
   const filtered = query.status_finalisasi ? mapped.filter((row) =>
     row.status_finalisasi === query.status_finalisasi) : mapped;
   const total = filtered.length;
-  return { items: filtered.slice((query.page - 1) * query.limit, query.page * query.limit),
+  const summary = { total: mapped.length, belumSiap: 0, siapDitetapkan: 0, sudahDitetapkan: 0 };
+  const counters = { BELUM_SIAP: 'belumSiap', SIAP_DITETAPKAN: 'siapDitetapkan', SUDAH_DITETAPKAN: 'sudahDitetapkan' };
+  for (const row of mapped) summary[counters[row.status_finalisasi]]++;
+  return { summary, items: filtered.slice((query.page - 1) * query.limit, query.page * query.limit),
     pagination: { page: query.page, limit: query.limit, total,
       total_pages: Math.ceil(total / query.limit) } };
 }
@@ -175,7 +179,13 @@ async function lock(tx, id) {
   await tx.$queryRaw`SELECT pg_advisory_xact_lock(20261108, ${id}::int) IS NULL AS locked`;
 }
 
-export async function assignPembimbingKpBulk(prisma, actorUserId, assignments) {
+export function assignPembimbingKpBulk(prisma, actorUserId, assignments) {
+  return afterKpChange(prisma, 'pengajuan.assignment.updated',
+    () => assignPembimbingBulk(prisma, actorUserId, assignments),
+    (result) => result.items.filter((item) => item.result === 'created').map((item) => item.pengajuan_id));
+}
+
+async function assignPembimbingBulk(prisma, actorUserId, assignments) {
   return serializable(prisma, async (tx) => {
     const prodiId = await prodiScope(tx, actorUserId);
     const results = [];
@@ -249,7 +259,12 @@ export async function listPenugasanPembimbingKp(prisma, actorUserId, query) {
     total_pages: Math.ceil(total / query.limit) } };
 }
 
-export async function replacePembimbingKp(prisma, actorUserId, id, newDosenId, reason) {
+export function replacePembimbingKp(prisma, actorUserId, id, newDosenId, reason) {
+  return afterKpChange(prisma, 'pengajuan.assignment.updated',
+    () => replacePembimbing(prisma, actorUserId, id, newDosenId, reason), [id]);
+}
+
+async function replacePembimbing(prisma, actorUserId, id, newDosenId, reason) {
   return serializable(prisma, async (tx) => {
     const prodiId = await prodiScope(tx, actorUserId);
     await lock(tx, id);

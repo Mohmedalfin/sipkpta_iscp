@@ -113,6 +113,7 @@ export default function PeriodPanel({ onPeriodChange }) {
         onAdd={() => form.openCreate(initial)}
         addLabel="Tambah Periode"
         onRefresh={handleRefresh}
+        refreshing={list.refreshing}
         badgeCount={list.pagination?.total_items ?? list.data.length}
         kicker="KALENDER AKADEMIK"
       />

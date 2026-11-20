@@ -1,3 +1,4 @@
+import { refreshQueries } from '../utils/refreshQueries.js';
 import { useEffect, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { fetchReviewerTasks, reviewerError } from '../services/reviewerKp.js';
@@ -22,8 +23,8 @@ export default function useReviewerKpList() {
     if (result.error) void reviewerError(result.error).then((message) => { if (active) setError(message); });
     return () => { active = false; };
   }, [result.error]);
-  return { items: [], pagination: {}, ...result.data, loading: result.isPending, error, search, setSearch, query,
+  return { items: [], pagination: {}, ...result.data, loading: result.isPending, refreshing: result.isFetching, error, search, setSearch, query,
     setPage: (page) => setQuery((old) => ({ ...old, page })),
     setStatus: (status_review) => setQuery((old) => ({ ...old, page: 1, status_review })),
-    reload: () => client.invalidateQueries({ queryKey: ['reviewer-kp-list'] }) };
+    reload: () => refreshQueries(client, ['reviewer-kp-list']) };
 }

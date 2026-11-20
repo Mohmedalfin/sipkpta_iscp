@@ -30,8 +30,8 @@ export async function fetchMahasiswaList({
 /**
  * Mengambil detail profil lengkap mahasiswa berdasarkan ID.
  */
-export async function fetchMahasiswaDetail(id) {
-  const response = await api.get(`/api/master/mahasiswa/${encodeURIComponent(id)}`);
+export async function fetchMahasiswaDetail(id, { signal } = {}) {
+  const response = await api.get(`/api/master/mahasiswa/${encodeURIComponent(id)}`, { signal });
   return response.data.data;
 }
 

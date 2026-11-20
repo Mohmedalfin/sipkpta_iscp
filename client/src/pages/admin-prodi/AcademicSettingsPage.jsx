@@ -83,7 +83,7 @@ export default function AcademicSettingsPage() {
   const activePeriodLoading = activePeriodsQuery.loading;
 
   return (
-    <div className="mx-auto w-full max-w-7xl space-y-4 pb-12">
+    <div className="mx-auto w-full max-w-7xl 2xl:max-w-screen-2xl space-y-6 pb-12">
       {/* 1. Header Halaman & Action Bar (Sesuai Master Mahasiswa & Master Dosen) */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-900/[0.06] pb-5">
         {/* Sisi Kiri: Judul Halaman & Subtitle */}
@@ -177,7 +177,7 @@ export default function AcademicSettingsPage() {
       </nav>
 
       {/* ================= 3. ACTIVE PANEL CONTAINER ================= */}
-      <div className="min-h-[500px]">
+      <div>
         <Panel onPeriodChange={activePeriodsQuery.refresh} />
       </div>
     </div>

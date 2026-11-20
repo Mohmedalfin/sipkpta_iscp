@@ -93,6 +93,7 @@ export default function ReviewWorkspaceModal({
     }
 
     let active = true;
+    const controller = new AbortController();
     setLoading(true);
     setError('');
     setDetail(null);
@@ -104,7 +105,7 @@ export default function ReviewWorkspaceModal({
       setPreviewState({ loading: false, url: null, error: '', fileName: '' });
     }
 
-    fetchAdminDataDiriDetail(studentId)
+    fetchAdminDataDiriDetail(studentId, { signal: controller.signal })
       .then((data) => {
         if (!active) return;
         if (data?.mahasiswa?.id == null || String(data.mahasiswa.id) !== String(studentId)) {
@@ -130,6 +131,7 @@ export default function ReviewWorkspaceModal({
 
     return () => {
       active = false;
+      controller.abort();
     };
   }, [open, studentId]);
 
@@ -146,12 +148,13 @@ export default function ReviewWorkspaceModal({
     }
 
     let active = true;
+    const controller = new AbortController();
     if (previewState.url) {
       URL.revokeObjectURL(previewState.url);
     }
     setPreviewState({ loading: true, url: null, error: '', fileName: docItem.dokumen_terkini.file.nama_file_asli });
 
-    fetchAdminDataDiriDocumentFile(studentId, selectedDocCode)
+    fetchAdminDataDiriDocumentFile(studentId, selectedDocCode, { signal: controller.signal })
       .then((blob) => {
         if (!active) return;
         const pdfBlob = new Blob([blob], { type: 'application/pdf' });
@@ -175,6 +178,7 @@ export default function ReviewWorkspaceModal({
 
     return () => {
       active = false;
+      controller.abort();
     };
   }, [open, studentId, selectedDocCode]);
 
@@ -292,7 +296,7 @@ export default function ReviewWorkspaceModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="workspace-modal-title"
-        className="relative w-full max-w-7xl h-[94vh] sm:h-[92vh] max-h-[920px] rounded-[20px] sm:rounded-[24px] border border-slate-900/[0.12] bg-canvas flex flex-col overflow-hidden shadow-2xl text-ink"
+        className="relative w-full max-w-7xl 2xl:max-w-screen-2xl h-[94vh] sm:h-[92vh] max-h-[920px] 2xl:max-h-[980px] rounded-[20px] sm:rounded-[24px] border border-slate-900/[0.12] bg-canvas flex flex-col overflow-hidden shadow-2xl text-ink"
       >
         {/* ================= 1. MODAL TOP HEADER ================= */}
         <div className="flex items-center justify-between gap-3 px-4 sm:px-6 py-3.5 sm:py-4 bg-white/75 backdrop-blur-sm border-b border-slate-900/[0.06] shrink-0">

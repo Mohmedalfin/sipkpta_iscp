@@ -88,7 +88,9 @@ export default function KpAdminWorkspaceModal({
   const [error, setError] = useState('');
   const [detail, setDetail] = useState(null);
   const detailRequestIdRef = useRef(0);
+  const requestController = useRef(null);
   const previewRequestIdRef = useRef(0);
+  const previewController = useRef(null);
   const previewUrlRef = useRef(null);
 
   // Berkas yang sedang aktif dipratinjau di sisi kanan
@@ -123,8 +125,12 @@ export default function KpAdminWorkspaceModal({
    */
   const loadDetailData = async () => {
     if (!pengajuanId) return;
+    requestController.current?.abort();
+    const controller = new AbortController();
+    requestController.current = controller;
     const requestId = ++detailRequestIdRef.current;
     previewRequestIdRef.current += 1;
+    previewController.current?.abort();
     if (previewUrlRef.current) {
       URL.revokeObjectURL(previewUrlRef.current);
       previewUrlRef.current = null;
@@ -137,7 +143,7 @@ export default function KpAdminWorkspaceModal({
 
     try {
       const data = await queryClient.fetchQuery({ queryKey: ['admin-kp-detail', pengajuanId],
-        queryFn: ({ signal }) => fetchAdminKpDetail(pengajuanId, { signal }), staleTime: 0 });
+        queryFn: ({ signal }) => fetchAdminKpDetail(pengajuanId, { signal: AbortSignal.any([signal, controller.signal]) }), staleTime: 0 });
       if (requestId !== detailRequestIdRef.current) return;
       if (data?.id == null || String(data.id) !== String(pengajuanId)) {
         setError('Detail pengajuan tidak tersedia. Coba lagi.');
@@ -171,6 +177,7 @@ export default function KpAdminWorkspaceModal({
     } else {
       detailRequestIdRef.current += 1;
       previewRequestIdRef.current += 1;
+      previewController.current?.abort();
       setDetail(null);
       setLoading(true);
       setError('');
@@ -184,7 +191,9 @@ export default function KpAdminWorkspaceModal({
     }
     return () => {
       detailRequestIdRef.current += 1;
+      requestController.current?.abort();
       previewRequestIdRef.current += 1;
+      previewController.current?.abort();
       if (previewUrlRef.current) {
         URL.revokeObjectURL(previewUrlRef.current);
         previewUrlRef.current = null;
@@ -197,6 +206,9 @@ export default function KpAdminWorkspaceModal({
    * Memuat pratinjau file PDF secara privat
    */
   const loadPdfPreview = async (appId, docId, title) => {
+    previewController.current?.abort();
+    const controller = new AbortController();
+    previewController.current = controller;
     const requestId = ++previewRequestIdRef.current;
     if (previewUrlRef.current) {
       URL.revokeObjectURL(previewUrlRef.current);
@@ -211,7 +223,7 @@ export default function KpAdminWorkspaceModal({
     });
 
     try {
-      const blob = await downloadAdminKpDocumentFile(appId, docId);
+      const blob = await downloadAdminKpDocumentFile(appId, docId, { signal: controller.signal });
       const pdfBlob = new Blob([blob], { type: 'application/pdf' });
       const objectUrl = URL.createObjectURL(pdfBlob);
       if (requestId !== previewRequestIdRef.current) {
@@ -422,7 +434,7 @@ export default function KpAdminWorkspaceModal({
       />
 
       {/* Main Modal Container */}
-      <div className="relative w-full max-w-7xl h-[94vh] sm:h-[92vh] max-h-[920px] rounded-[20px] sm:rounded-[24px] border border-slate-900/[0.12] bg-canvas flex flex-col overflow-hidden shadow-2xl text-ink">
+      <div className="relative w-full max-w-7xl 2xl:max-w-screen-2xl h-[94vh] sm:h-[92vh] max-h-[920px] 2xl:max-h-[980px] rounded-[20px] sm:rounded-[24px] border border-slate-900/[0.12] bg-canvas flex flex-col overflow-hidden shadow-2xl text-ink">
         {/* ============================================================ */}
         {/* 1. Modal Top Header (Konsisten dengan Verifikasi Data Diri)  */}
         {/* ============================================================ */}

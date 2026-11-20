@@ -82,11 +82,12 @@ export default function DosenDetailModal({
     if (!open || !lecturer?.id) return;
 
     let active = true;
+    const controller = new AbortController();
     setDetailData(lecturer);
     setLoading(true);
     setError('');
 
-    fetchDosenDetail(lecturer.id)
+    fetchDosenDetail(lecturer.id, { signal: controller.signal })
       .then((data) => {
         if (!active) return;
         setDetailData(data);
@@ -103,6 +104,7 @@ export default function DosenDetailModal({
 
     return () => {
       active = false;
+      controller.abort();
     };
   }, [open, lecturer, toast]);
 

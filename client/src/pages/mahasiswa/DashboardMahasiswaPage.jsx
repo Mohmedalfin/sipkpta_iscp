@@ -1,6 +1,6 @@
 export default function DashboardMahasiswaPage() {
   return (
-    <div className="mx-auto w-full max-w-7xl space-y-6">
+    <div className="mx-auto w-full max-w-7xl 2xl:max-w-screen-2xl space-y-6">
       <div className="border-b border-line pb-5">
         <span className="text-[11px] font-bold uppercase tracking-wider text-muted">
           Portal Akademik Mahasiswa

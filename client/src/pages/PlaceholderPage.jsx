@@ -32,7 +32,7 @@ export default function PlaceholderPage() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-4xl space-y-6">
+    <div className="mx-auto w-full max-w-7xl 2xl:max-w-screen-2xl space-y-6">
       {/* Header */}
       <div className="border-b border-slate-900/[0.06] pb-5">
         <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">

@@ -157,7 +157,7 @@ export default function ProfilMahasiswaPage() {
   // State: Loading Skeleton
   if (loading) {
     return (
-      <div className="mx-auto w-full max-w-6xl space-y-6 animate-pulse">
+      <div className="mx-auto w-full max-w-7xl 2xl:max-w-screen-2xl space-y-6 animate-pulse">
         <div className="border-b border-slate-900/[0.06] pb-5">
           <div className="h-3 w-28 bg-slate-200/60 rounded mb-2" />
           <div className="h-7 w-48 bg-slate-200/60 rounded mb-2" />
@@ -208,7 +208,7 @@ export default function ProfilMahasiswaPage() {
     : 0;
 
   return (
-    <div className="mx-auto w-full max-w-6xl space-y-6">
+    <div className="mx-auto w-full max-w-7xl 2xl:max-w-screen-2xl space-y-6">
       {/* 1. Header Halaman */}
       <div className="border-b border-slate-900/[0.06] pb-5">
         <span className="text-[11px] font-bold uppercase tracking-wider text-muted">

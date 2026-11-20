@@ -1,8 +1,6 @@
 import useKpQueue from '../../hooks/useKpQueue.js';
 import { useEffect, useRef, useState } from 'react';
-import {
-  IconExclamationCircle,
-} from '../../components/common/Icons.jsx';
+import ErrorBanner from '../../components/common/ErrorBanner.jsx';
 import {
   AssignReviewerModal,
   BulkAssignReviewerModal,
@@ -206,7 +204,7 @@ export default function PenugasanReviewerKpPage() {
   };
 
   return (
-    <div className="mx-auto w-full max-w-7xl space-y-6">
+    <div className="mx-auto w-full max-w-7xl 2xl:max-w-screen-2xl space-y-6">
       {/* 1. Header Halaman */}
       <div className="border-b border-slate-900/[0.06] pb-5">
         <span className="text-[11px] font-bold uppercase tracking-wider text-muted">
@@ -221,25 +219,11 @@ export default function PenugasanReviewerKpPage() {
       </div>
 
       {/* Alert Error jika ada */}
-      {error && (
-        <div
-          role="alert"
-          className="flex items-start gap-3 rounded-2xl border border-rose-200 bg-rose-50/80 p-4 text-xs sm:text-sm text-danger"
-        >
-          <IconExclamationCircle className="size-5 shrink-0 text-rose-600 mt-0.5" />
-          <div className="flex-1">
-            <p className="font-bold text-rose-800">Gagal Memuat Data</p>
-            <p className="mt-0.5 text-rose-700">{error}</p>
-          </div>
-          <button
-            type="button"
-            onClick={loadData}
-            className="rounded-lg bg-white px-2.5 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-100 transition-colors shadow-xs cursor-pointer"
-          >
-            Coba Lagi
-          </button>
-        </div>
-      )}
+      <ErrorBanner
+        title="Gagal Memuat Data Penugasan Reviewer"
+        message={error}
+        onRetry={loadData}
+      />
 
       {/* 1. Summary KPI Cards */}
       <ReviewerKpSummaryCards
@@ -251,6 +235,7 @@ export default function PenugasanReviewerKpPage() {
 
       {/* 2. Toolbar & Filter */}
       <ReviewerKpToolbar
+        refreshing={queue.refreshing}
         search={search}
         onSearchChange={handleSearchChange}
         statusPenugasan={statusPenugasan}
@@ -281,6 +266,8 @@ export default function PenugasanReviewerKpPage() {
       <ReviewerKpTable
         items={items}
         loading={loading}
+        error={error}
+        onRetry={loadData}
         pagination={pagination}
         onPageChange={handlePageChange}
         selectedIds={selectedIds}

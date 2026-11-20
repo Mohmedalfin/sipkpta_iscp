@@ -38,6 +38,7 @@ export default function StagePanel() {
         title="Tahap Akademik Program Studi"
         description="Kelola alur dan integritas urutan tahapan akademik KP → ISCP → TA prodi."
         onRefresh={list.refresh}
+        refreshing={list.refreshing}
         badgeCount={list.data.length}
         kicker="SIKLUS AKADEMIK"
       />

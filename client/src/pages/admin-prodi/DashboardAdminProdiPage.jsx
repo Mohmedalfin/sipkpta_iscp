@@ -71,7 +71,7 @@ export default function DashboardAdminProdiPage() {
   ];
 
   return (
-    <div className="mx-auto w-full max-w-7xl space-y-6">
+    <div className="mx-auto w-full max-w-7xl 2xl:max-w-screen-2xl space-y-6">
       {/* 1. Header Halaman */}
       <div className="border-b border-slate-900/[0.06] pb-5">
         <span className="text-[11px] font-bold uppercase tracking-wider text-muted">

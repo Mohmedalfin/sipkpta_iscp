@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import useReviewerKpList from '../../hooks/useReviewerKpList.js';
 import { useToast } from '../../context/ToastContext.jsx';
-import { IconExclamationCircle } from '../../components/common/Icons.jsx';
+import ErrorBanner from '../../components/common/ErrorBanner.jsx';
 import {
   BulkReviewModal,
   ReviewKpSummaryCards,
@@ -101,7 +101,7 @@ export default function ReviewKpPage() {
   // Refresh data dan metrik
   const reload = () => {
     setSelection([]);
-    list.reload();
+    return list.reload();
   };
 
   // Reset seluruh filter
@@ -156,7 +156,7 @@ export default function ReviewKpPage() {
   };
 
   return (
-    <div className="mx-auto w-full max-w-7xl space-y-6">
+    <div className="mx-auto w-full max-w-7xl 2xl:max-w-screen-2xl space-y-6">
       {/* 1. Header Halaman */}
       <div className="border-b border-slate-900/[0.06] pb-5">
         <span className="text-[11px] font-bold uppercase tracking-wider text-muted">
@@ -172,23 +172,11 @@ export default function ReviewKpPage() {
 
       {/* Alert Error jika ada */}
       {list.error && (
-        <div
-          role="alert"
-          className="flex items-start gap-3 rounded-2xl border border-rose-200 bg-rose-50/80 p-4 text-xs sm:text-sm text-danger"
-        >
-          <IconExclamationCircle className="size-5 shrink-0 text-rose-600 mt-0.5" />
-          <div className="flex-1">
-            <p className="font-bold text-rose-800">Gagal Memuat Antrean Review</p>
-            <p className="mt-0.5 text-rose-700">{list.error}</p>
-          </div>
-          <button
-            type="button"
-            onClick={reload}
-            className="rounded-lg bg-white px-2.5 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-100 transition-colors shadow-xs cursor-pointer"
-          >
-            Coba Lagi
-          </button>
-        </div>
+        <ErrorBanner
+          title="Gagal Memuat Antrean Review"
+          message={list.error}
+          onRetry={reload}
+        />
       )}
 
       {/* 2. KPI Summary Cards */}
@@ -201,6 +189,7 @@ export default function ReviewKpPage() {
 
       {/* 3. Toolbar & Filter */}
       <ReviewKpToolbar
+        refreshing={list.refreshing || summary.isFetching}
         search={list.search}
         onSearchChange={(val) => {
           setSelection([]);

@@ -27,8 +27,8 @@ export async function fetchDosenList({
 /**
  * Mengambil detail profil lengkap dosen berdasarkan ID.
  */
-export async function fetchDosenDetail(id) {
-  const response = await api.get(`/api/master/dosen/${encodeURIComponent(id)}`);
+export async function fetchDosenDetail(id, { signal } = {}) {
+  const response = await api.get(`/api/master/dosen/${encodeURIComponent(id)}`, { signal });
   return response.data.data;
 }
 

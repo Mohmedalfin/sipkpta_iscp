@@ -36,3 +36,10 @@ export function selectKpApplication(applications, periodId, historyId = null) {
     (periodId === null ? applications[0] || null : null);
   return { current, selected, history: applications.filter((item) => item.id !== current?.id) };
 }
+
+/** Manual refresh must never replace an editable draft or administrative revision. */
+export function canRefreshKpTracking(application) {
+  return Boolean(application && application.status_pengajuan !== 'DRAFT' &&
+    application.status_pemeriksaan_berkas !== 'BELUM_OK' &&
+    application.status_pemeriksaan_akademik !== 'BELUM_OK');
+}

@@ -1,9 +1,9 @@
+import RefreshButton from '../../common/RefreshButton.jsx';
 import { useEffect, useRef, useState } from 'react';
 import {
   IconCalendar,
   IconChevronDown,
   IconClose,
-  IconRefresh,
   IconSearch,
   IconSpinner,
 } from '../../common/Icons.jsx';
@@ -195,16 +195,7 @@ export default function MahasiswaToolbar({
             </button>
           )}
 
-          <button
-            type="button"
-            onClick={onRefresh}
-            disabled={isFetching}
-            className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-slate-900/[0.08] bg-white/80 hover:bg-white px-3 py-2 text-xs font-semibold text-secondary transition-colors cursor-pointer disabled:opacity-50 shadow-none shrink-0"
-            title="Segarkan data mahasiswa"
-          >
-            <IconRefresh className={`size-3.5 ${isFetching ? 'animate-spin text-brand' : ''}`} />
-            <span className="hidden sm:inline">Segarkan Data</span>
-          </button>
+          <RefreshButton onRefresh={onRefresh} refreshing={isFetching} disabled={false} />
         </div>
       </div>
 

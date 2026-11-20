@@ -1,3 +1,4 @@
+import { refreshQueries } from '../utils/refreshQueries.js';
 import { useCallback } from 'react';
 import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
 import { fetchAdminKpApplications } from '../services/adminPengajuanKp.js';
@@ -13,6 +14,6 @@ export default function useKpQueue(kind, params) {
   const summary = useQuery({ queryKey: [family, { page: 1, limit: 100 }],
     queryFn: ({ signal }) => fetchList({ page: 1, limit: 100 }, { signal }),
     refetchInterval: 120000, refetchIntervalInBackground: false });
-  const reload = useCallback(() => client.invalidateQueries({ queryKey: [family] }), [client, family]);
-  return { ...query, summary: summary.data, reload };
+  const reload = useCallback(() => refreshQueries(client, [family]), [client, family]);
+  return { ...query, refreshing: query.isFetching || summary.isFetching, summary: summary.data, reload };
 }

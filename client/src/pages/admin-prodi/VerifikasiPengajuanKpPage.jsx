@@ -1,9 +1,6 @@
 import useKpQueue from '../../hooks/useKpQueue.js';
 import { useEffect, useRef, useState } from 'react';
-import {
-  IconClipboardCheck,
-  IconExclamationCircle,
-} from '../../components/common/Icons.jsx';
+import ErrorBanner from '../../components/common/ErrorBanner.jsx';
 import {
   KpAdminSummaryCards,
   KpAdminTable,
@@ -165,7 +162,7 @@ export default function VerifikasiPengajuanKpPage() {
   };
 
   return (
-    <div className="mx-auto w-full max-w-7xl space-y-6">
+    <div className="mx-auto w-full max-w-7xl 2xl:max-w-screen-2xl space-y-6">
       {/* ============================================================ */}
       {/* Header Halaman                                               */}
       {/* ============================================================ */}
@@ -195,6 +192,7 @@ export default function VerifikasiPengajuanKpPage() {
       {/* 2. Toolbar Pencarian & Filter                                */}
       {/* ============================================================ */}
       <KpAdminToolbar
+        refreshing={queue.refreshing}
         search={search}
         onSearchChange={handleSearchChange}
         statusPengajuan={statusPengajuan}
@@ -224,10 +222,11 @@ export default function VerifikasiPengajuanKpPage() {
       {/* 3. Pesan Error (jika ada)                                    */}
       {/* ============================================================ */}
       {error && (
-        <div className="flex items-center gap-2 rounded-lg border border-rose-200 bg-rose-50 p-4 text-xs text-danger">
-          <IconExclamationCircle className="size-4 shrink-0" />
-          <span>{error}</span>
-        </div>
+        <ErrorBanner
+          title="Gagal Memuat Antrean Pengajuan KP"
+          message={error}
+          onRetry={loadData}
+        />
       )}
 
       {/* ============================================================ */}
@@ -239,6 +238,10 @@ export default function VerifikasiPengajuanKpPage() {
         onPageChange={(newPage) => setPagination((prev) => ({ ...prev, page: newPage }))}
         onOpenDetail={handleOpenWorkspace}
         loading={loading}
+        error={error}
+        onRetry={loadData}
+        hasActiveFilter={Boolean(activeSearch.trim() || statusPengajuan || statusBerkas || statusNilai)}
+        onResetFilter={handleResetFilters}
       />
 
       {/* ============================================================ */}

@@ -1,3 +1,5 @@
+import TableSkeletonRows from '../../common/TableSkeletonRows.jsx';
+import TableEmptyState, { TableErrorState } from '../../common/TableEmptyState.jsx';
 import {
   IconBriefcase,
   IconDocumentSearch,
@@ -107,6 +109,8 @@ export default function ReviewerKpTable({
   onOpenAssign,
   onResetFilter,
   hasActiveFilter = false,
+  error = '',
+  onRetry,
 }) {
   const allCurrentPageSelected =
     items.length > 0 && items.every((item) => selectedIds.includes(item.id));
@@ -116,12 +120,12 @@ export default function ReviewerKpTable({
     !allCurrentPageSelected;
 
   return (
-    <div className="rounded-[20px] border border-slate-900/[0.08] bg-white/75 backdrop-blur-sm shadow-none overflow-hidden flex flex-col relative z-0">
-      <div className="overflow-x-auto min-h-[300px]">
+    <div className="rounded-[18px] border border-slate-900/[0.08] bg-white/75 backdrop-blur-sm shadow-none overflow-hidden flex flex-col relative z-0">
+      <div className="overflow-x-auto">
         <table className="w-full text-left text-xs border-collapse">
           <thead>
-            <tr className="border-b border-slate-900/[0.08] bg-slate-50/70 text-muted uppercase text-[10px] font-bold tracking-wider">
-              <th scope="col" className="w-10 px-4 py-3 text-center">
+            <tr className="border-b border-slate-900/[0.08] bg-slate-50/70 text-secondary uppercase text-[10px] font-bold tracking-wider">
+              <th scope="col" className="w-10 px-4 py-3.5 text-center">
                 <input
                   type="checkbox"
                   aria-label="Pilih semua pengajuan di halaman ini"
@@ -134,87 +138,44 @@ export default function ReviewerKpTable({
                   className="rounded border-slate-900/20 text-brand focus:ring-brand/30 size-3.5 cursor-pointer disabled:cursor-not-allowed"
                 />
               </th>
-              <th scope="col" className="px-4 py-3 min-w-[200px]">
+              <th scope="col" className="px-4 py-3.5 min-w-[200px]">
                 Mahasiswa
               </th>
-              <th scope="col" className="px-4 py-3 min-w-[260px]">
+              <th scope="col" className="px-4 py-3.5 min-w-[260px]">
                 Judul Proposal & Periode
               </th>
-              <th scope="col" className="px-4 py-3 min-w-[120px] whitespace-nowrap">
+              <th scope="col" className="px-4 py-3.5 min-w-[120px] whitespace-nowrap">
                 Status Admin
               </th>
-              <th scope="col" className="px-4 py-3 min-w-[120px] whitespace-nowrap">
+              <th scope="col" className="px-4 py-3.5 min-w-[120px] whitespace-nowrap">
                 Status Reviewer
               </th>
-              <th scope="col" className="px-4 py-3 min-w-[110px] text-right">
+              <th scope="col" className="px-4 py-3.5 min-w-[110px] text-right">
                 Aksi
               </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-900/[0.05] text-ink">
             {loading ? (
-              // Loading Skeleton 5 Baris
-              Array.from({ length: 5 }).map((_, idx) => (
-                <tr key={`skeleton-${idx}`} className="animate-pulse">
-                  <td className="px-4 py-3.5 text-center">
-                    <div className="size-3.5 mx-auto rounded bg-slate-200" />
-                  </td>
-                  <td className="px-4 py-3.5">
-                    <div className="flex items-center gap-3">
-                      <div className="size-8 rounded-full bg-slate-200 shrink-0" />
-                      <div className="space-y-1.5 flex-1">
-                        <div className="h-3.5 bg-slate-200 rounded w-28" />
-                        <div className="h-2.5 bg-slate-100 rounded w-20" />
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-4 py-3.5">
-                    <div className="space-y-1.5">
-                      <div className="h-3 bg-slate-200 rounded w-3/4" />
-                      <div className="h-2.5 bg-slate-100 rounded w-1/3" />
-                    </div>
-                  </td>
-                  <td className="px-4 py-3.5">
-                    <div className="h-5 bg-slate-200 rounded-md w-24" />
-                  </td>
-                  <td className="px-4 py-3.5">
-                    <div className="h-5 bg-slate-200 rounded-md w-28" />
-                  </td>
-                  <td className="px-4 py-3.5 text-right">
-                    <div className="h-7 bg-slate-200 rounded-lg w-16 ml-auto" />
-                  </td>
-                </tr>
-              ))
+              <TableSkeletonRows columns={6} />
+            ) : error ? (
+              <TableErrorState
+                colSpan={6}
+                title="Gagal Memuat Antrean Penugasan"
+                error={error}
+                onRetry={onRetry}
+              />
             ) : items.length === 0 ? (
-              // Empty State
-              <tr>
-                <td colSpan={6} className="px-4 py-14 text-center">
-                  <div className="flex flex-col items-center justify-center max-w-sm mx-auto">
-                    <div className="size-12 rounded-full bg-slate-100 flex items-center justify-center text-muted mb-3">
-                      <IconBriefcase className="size-6" />
-                    </div>
-                    <h3 className="text-sm font-bold text-ink">
-                      {hasActiveFilter
-                        ? 'Tidak ada pengajuan yang cocok'
-                        : 'Belum ada antrean pengajuan KP'}
-                    </h3>
-                    <p className="mt-1 text-xs text-secondary leading-relaxed">
-                      {hasActiveFilter
-                        ? 'Coba sesuaikan kata kunci pencarian atau ubah filter status yang diterapkan.'
-                        : 'Belum ada mahasiswa yang mengirim pengajuan Kerja Praktik pada periode ini.'}
-                    </p>
-                    {hasActiveFilter && onResetFilter && (
-                      <button
-                        type="button"
-                        onClick={onResetFilter}
-                        className="mt-3.5 inline-flex items-center gap-1.5 rounded-xl border border-slate-900/[0.12] bg-white px-3 py-1.5 text-xs font-semibold text-secondary hover:bg-slate-50 transition-colors cursor-pointer"
-                      >
-                        Reset Filter Pencarian
-                      </button>
-                    )}
-                  </div>
-                </td>
-              </tr>
+              <TableEmptyState
+                colSpan={6}
+                hasActiveFilter={hasActiveFilter}
+                onResetFilter={onResetFilter}
+                icon={<IconBriefcase className="size-6 text-muted" />}
+                title="Belum ada antrean pengajuan KP"
+                filteredTitle="Tidak ada pengajuan yang cocok"
+                description="Belum ada mahasiswa yang mengirim pengajuan Kerja Praktik pada periode ini."
+                filteredDescription="Coba sesuaikan kata kunci pencarian atau ubah filter status yang diterapkan."
+              />
             ) : (
               // Data Rows
               items.map((item) => {

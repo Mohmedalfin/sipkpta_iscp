@@ -120,6 +120,7 @@ export default function DocumentTypesPanel() {
         onAdd={() => form.openCreate(initial)}
         addLabel="Tambah Jenis Dokumen"
         onRefresh={list.refresh}
+        refreshing={list.refreshing}
         badgeCount={list.pagination?.total_items ?? list.data.length}
         kicker="MASTER DOKUMEN"
       />

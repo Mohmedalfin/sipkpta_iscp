@@ -1,6 +1,6 @@
+import RefreshButton from '../../common/RefreshButton.jsx';
 import {
   IconClose,
-  IconRefresh,
   IconSearch,
   IconSpinner,
   IconUsers,
@@ -53,6 +53,7 @@ export default function ReviewerKpToolbar({
   onStatusPengajuanChange,
   onSortChange,
   onRefresh,
+  refreshing = false,
   onReset,
   loading = false,
   selectedCount = 0,
@@ -121,16 +122,7 @@ export default function ReviewerKpToolbar({
             </button>
           )}
 
-          <button
-            type="button"
-            onClick={onRefresh}
-            disabled={loading}
-            className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-slate-900/[0.08] bg-white/80 hover:bg-white px-3 py-2 text-xs font-semibold text-secondary transition-colors cursor-pointer disabled:opacity-50 shadow-none shrink-0"
-            title="Segarkan data antrean"
-          >
-            <IconRefresh className={`size-3.5 ${loading ? 'animate-spin text-brand' : ''}`} />
-            <span className="hidden sm:inline">Segarkan Data</span>
-          </button>
+          <RefreshButton onRefresh={onRefresh} refreshing={refreshing} disabled={loading} />
         </div>
       </div>
 

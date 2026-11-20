@@ -1,10 +1,11 @@
+import RefreshButton from '../../common/RefreshButton.jsx';
+import { ListSkeleton } from '../../common/TableSkeletonRows.jsx';
 import { useRef } from 'react';
 import { createPortal } from 'react-dom';
 import {
   IconChevronDown,
   IconClose,
   IconExclamationCircle,
-  IconRefresh,
   IconSpinner,
 } from '../../common/Icons.jsx';
 import boxIcon from '../../../assets/NoBackground Box.svg';
@@ -71,6 +72,7 @@ export function SectionHeader({
   onAdd,
   addLabel = 'Tambah Data',
   onRefresh,
+  refreshing = false,
   badgeCount = null,
   kicker = 'PENGATURAN',
   children,
@@ -101,16 +103,7 @@ export function SectionHeader({
       <div className="flex items-center gap-2 self-start sm:self-center shrink-0">
         {children}
         {onRefresh && (
-          <button
-            type="button"
-            onClick={onRefresh}
-            className={secondaryButton}
-            title="Segarkan data terbaru"
-            aria-label="Segarkan data"
-          >
-            <IconRefresh className="size-3.5 text-slate-500" />
-            <span className="hidden xs:inline">Segarkan</span>
-          </button>
+          <RefreshButton onRefresh={onRefresh} refreshing={refreshing} />
         )}
         {onAdd && (
           <button type="button" onClick={onAdd} className={primaryButton}>
@@ -127,17 +120,7 @@ export function SectionHeader({
  * State feedback: loading skeleton / error banner / empty state.
  */
 export function ListState({ loading, error, empty, emptyTitle = 'Belum ada data', emptyMessage = 'Belum ada data konfigurasi untuk filter yang dipilih.', onRetry }) {
-  if (loading) {
-    return (
-      <div className="rounded-[18px] border border-slate-900/[0.08] bg-white p-8 flex flex-col items-center justify-center gap-3 text-center min-h-[300px]" role="status">
-        <IconSpinner className="size-6 text-brand animate-spin" />
-        <div>
-          <p className="text-xs font-semibold text-ink">Memuat data konfigurasi…</p>
-          <p className="text-[11px] text-muted mt-0.5">Menghubungkan ke server akademik</p>
-        </div>
-      </div>
-    );
-  }
+  if (loading) return <ListSkeleton />;
 
   if (error) {
     return (

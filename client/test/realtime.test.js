@@ -55,3 +55,13 @@ test('notification events invalidate inbox only; reconnect refreshes active noti
   assert.equal(isRealtimeQuery(['kp-reviews', 3], event), false);
   assert.equal(isRealtimeQuery(['notifications', 'count'], null), true);
 });
+
+test('finalization list and summary respond to review, administration and assignment events', () => {
+  for (const type of ['pengajuan.review.updated', 'pengajuan.administration.updated', 'pengajuan.assignment.updated']) {
+    const events = [{ type, resource_id: 9 }];
+    assert.equal(isRealtimeQuery(['kaprodi-finalisasi-kp-list', {}], events), true);
+    assert.equal(isRealtimeQuery(['kaprodi-finalisasi-kp-summary'], events), true);
+    assert.equal(isRealtimeQuery(['kaprodi-finalisasi-kp-detail', 9], events), true);
+    assert.equal(isRealtimeQuery(['kaprodi-finalisasi-kp-detail', 10], events), false);
+  }
+});

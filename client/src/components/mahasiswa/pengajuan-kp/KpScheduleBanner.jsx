@@ -58,7 +58,7 @@ function calculateRemainingDays(tglSelesai) {
 export default function KpScheduleBanner({ jadwal, dataDiri = null, loading = false }) {
   if (loading) {
     return (
-      <div className="w-full animate-pulse rounded-lg border border-line bg-white px-4 py-3">
+      <div className="w-full motion-safe:animate-pulse rounded-lg border border-line bg-white px-4 py-3">
         <div className="flex items-center justify-between gap-4">
           <div className="h-4 w-64 rounded bg-subtle" />
           <div className="h-6 w-36 rounded-full bg-subtle" />
@@ -74,27 +74,27 @@ export default function KpScheduleBanner({ jadwal, dataDiri = null, loading = fa
   return (
     <aside
       aria-label="Status Pendaftaran dan Periode Akademik"
-      className="w-full rounded-xl border border-line bg-white px-3.5 py-2.5 sm:px-4 sm:py-2.5 shadow-2xs"
+      className="w-full rounded-xl border border-line bg-white px-4 py-3 motion-safe:transition-shadow motion-safe:duration-200 hover:shadow-sm"
     >
-      <div className="flex flex-col gap-2.5 lg:flex-row lg:items-center lg:justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
         {/* Sisi Kiri: Ikon, Periode, & Batas Akhir Ringkas */}
-        <div className="flex items-center gap-2.5 min-w-0">
+        <div className="flex items-start gap-2 min-w-0">
           {isOpen ? (
-            <IconCalendarClock className="size-4.5 shrink-0 text-emerald-600" />
+            <IconCalendarClock className="mt-0.5 size-5 shrink-0 text-secondary" />
           ) : (
-            <IconLockClosed className="size-4.5 shrink-0 text-secondary" />
+            <IconLockClosed className="mt-0.5 size-5 shrink-0 text-secondary" />
           )}
 
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs sm:text-sm">
-            <span className="font-bold text-ink">
+            <span className="font-semibold text-ink">
               {jadwal?.tahun_ajaran && jadwal?.semester
                 ? `Periode ${jadwal.tahun_ajaran} ${jadwal.semester}`
                 : 'Periode KP'}
             </span>
-            <span className="rounded bg-brand-soft px-1.5 py-0.5 text-[11px] font-semibold text-brand">
+            <span className="rounded border border-line bg-subtle/50 px-2 py-0.5 text-[11px] font-medium text-secondary">
               Kerja Praktik
             </span>
-            <span className="text-line hidden sm:inline">•</span>
+            <span className="hidden">•</span>
             <span className="text-secondary text-xs">
               Batas:{' '}
               <strong className="font-semibold text-ink">
@@ -110,18 +110,15 @@ export default function KpScheduleBanner({ jadwal, dataDiri = null, loading = fa
         </div>
 
         {/* Sisi Kanan: Status Pendaftaran & Status Data Diri Ringkas */}
-        <div className="flex flex-wrap items-center gap-2 shrink-0">
+        <div className="flex flex-wrap items-center gap-2">
           {/* Badge Buka / Tutup */}
           {isOpen ? (
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-300 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
-              <span className="relative flex size-2">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-                <span className="relative inline-flex size-2 rounded-full bg-emerald-600" />
-              </span>
+            <span className="inline-flex items-center gap-1.5 rounded-md border border-line bg-subtle/50 px-2.5 py-1 text-xs font-semibold text-secondary">
+              <span className="size-1.5 rounded-full bg-secondary" aria-hidden="true" />
               Pendaftaran Dibuka
             </span>
           ) : (
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-300 bg-slate-100 px-2.5 py-1 text-xs font-semibold text-secondary">
+            <span className="inline-flex items-center gap-1.5 rounded-md border border-line bg-subtle/50 px-2.5 py-1 text-xs font-semibold text-secondary">
               <span className="size-2 rounded-full bg-slate-400" />
               Pendaftaran Ditutup
             </span>
@@ -130,14 +127,14 @@ export default function KpScheduleBanner({ jadwal, dataDiri = null, loading = fa
           {/* Badge Prasyarat Data Diri (Minimalis) */}
           {dataDiri && (
             isDataDiriLengkap ? (
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50/70 px-2.5 py-1 text-xs font-semibold text-emerald-800">
-                <IconCheckCircle className="size-3.5 text-emerald-600" />
+              <span className="inline-flex items-center gap-1.5 rounded-md border border-line bg-white px-2.5 py-1 text-xs font-semibold text-secondary">
+                <IconCheckCircle className="size-3.5 text-secondary" />
                 Data Diri Lengkap (6/6)
               </span>
             ) : (
               <Link
                 to="/mahasiswa/dokumen"
-                className="inline-flex items-center gap-1.5 rounded-full border border-amber-300 bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-900 transition hover:bg-amber-100 focus:outline-hidden"
+                className="inline-flex items-center gap-1.5 rounded-md border border-amber-300 bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-900 transition hover:bg-amber-100 focus:outline-hidden"
                 title="Klik untuk melengkapi berkas data diri"
               >
                 <IconExclamationTriangle className="size-3.5 text-amber-700" />

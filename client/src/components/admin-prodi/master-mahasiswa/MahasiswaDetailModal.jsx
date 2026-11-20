@@ -82,11 +82,12 @@ export default function MahasiswaDetailModal({
     if (!open || !student?.id) return;
 
     let active = true;
+    const controller = new AbortController();
     setDetailData(student);
     setLoading(true);
     setError('');
 
-    fetchMahasiswaDetail(student.id)
+    fetchMahasiswaDetail(student.id, { signal: controller.signal })
       .then((data) => {
         if (!active) return;
         setDetailData(data);
@@ -103,6 +104,7 @@ export default function MahasiswaDetailModal({
 
     return () => {
       active = false;
+      controller.abort();
     };
   }, [open, student, toast]);
 

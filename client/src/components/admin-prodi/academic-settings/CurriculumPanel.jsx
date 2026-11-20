@@ -107,6 +107,7 @@ export default function CurriculumPanel() {
         onAdd={() => form.openCreate(initial)}
         addLabel="Tambah Kurikulum"
         onRefresh={list.refresh}
+        refreshing={list.refreshing}
         badgeCount={list.pagination?.total_items ?? list.data.length}
         kicker="REFERENSI KURIKULUM"
       />

@@ -49,16 +49,20 @@ export default function BulkAssignReviewerModal({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const candidateRequestIdRef = useRef(0);
+  const requestController = useRef(null);
 
   // Ambil daftar kandidat dosen saat modal dibuka
   const loadCandidates = useCallback(async () => {
+    requestController.current?.abort();
+    const controller = new AbortController();
+    requestController.current = controller;
     const requestId = ++candidateRequestIdRef.current;
     setLoadingCandidates(true);
     setError('');
     setCandidates([]);
 
     try {
-      const res = await fetchReviewerCandidates({ limit: 100 });
+      const res = await fetchReviewerCandidates({ limit: 100 }, { signal: controller.signal });
       if (requestId !== candidateRequestIdRef.current) return;
       setCandidates(res?.items || []);
     } catch (err) {
@@ -84,7 +88,7 @@ export default function BulkAssignReviewerModal({
       setCandidates([]);
       setSelectedDosenId('');
     }
-    return () => { candidateRequestIdRef.current += 1; };
+    return () => { candidateRequestIdRef.current += 1; requestController.current?.abort(); };
   }, [open, loadCandidates]);
 
   if (!open) return null;

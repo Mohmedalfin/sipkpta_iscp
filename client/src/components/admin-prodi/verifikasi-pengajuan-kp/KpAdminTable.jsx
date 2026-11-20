@@ -1,3 +1,5 @@
+import TableSkeletonRows from '../../common/TableSkeletonRows.jsx';
+import TableEmptyState, { TableErrorState } from '../../common/TableEmptyState.jsx';
 import {
   IconBriefcase,
   IconCheckCircle,
@@ -85,37 +87,6 @@ function StatusPengajuanBadge({ status }) {
 /**
  * Baris Skeleton saat data sedang dimuat
  */
-function SkeletonRows({ count = 5 }) {
-  return (
-    <>
-      {Array.from({ length: count }).map((_, i) => (
-        <tr key={i} className="animate-pulse border-b border-line">
-          <td className="p-4">
-            <div className="h-4 w-32 rounded bg-subtle" />
-            <div className="mt-1.5 h-3 w-20 rounded bg-subtle" />
-          </td>
-          <td className="p-4">
-            <div className="h-4 w-48 rounded bg-subtle" />
-            <div className="mt-1.5 h-3 w-24 rounded bg-subtle" />
-          </td>
-          <td className="p-4">
-            <div className="h-5 w-24 rounded bg-subtle" />
-          </td>
-          <td className="p-4">
-            <div className="h-5 w-24 rounded bg-subtle" />
-          </td>
-          <td className="p-4">
-            <div className="h-6 w-28 rounded bg-subtle" />
-          </td>
-          <td className="p-4 text-right">
-            <div className="inline-block h-8 w-24 rounded-lg bg-subtle" />
-          </td>
-        </tr>
-      ))}
-    </>
-  );
-}
-
 /**
  * Tabel Daftar Antrean Pengajuan KP Admin Prodi
  * 
@@ -132,49 +103,54 @@ export default function KpAdminTable({
   onPageChange,
   onOpenDetail,
   loading = false,
+  error = '',
+  onRetry,
+  hasActiveFilter = false,
+  onResetFilter,
 }) {
   return (
-    <div className="overflow-hidden rounded-xl border border-line bg-white shadow-2xs relative z-0">
+    <div className="rounded-[18px] border border-slate-900/[0.08] bg-white/75 backdrop-blur-sm overflow-hidden shadow-none relative z-0">
       <div className="overflow-x-auto">
-        <table className="w-full text-left text-xs">
-          <thead className="border-b border-line bg-subtle/40 text-[11px] font-bold uppercase tracking-wider text-muted">
+        <table className="w-full text-left text-xs border-collapse">
+          <thead className="border-b border-slate-900/[0.08] bg-slate-50/70 text-[10px] font-bold uppercase tracking-wider text-secondary">
             <tr>
-              <th scope="col" className="p-4">
+              <th scope="col" className="px-4 py-3.5">
                 Mahasiswa
               </th>
-              <th scope="col" className="p-4">
+              <th scope="col" className="px-4 py-3.5">
                 Usulan Topik & Periode
               </th>
-              <th scope="col" className="p-4">
+              <th scope="col" className="px-4 py-3.5">
                 Pemeriksaan Berkas
               </th>
-              <th scope="col" className="p-4">
+              <th scope="col" className="px-4 py-3.5">
                 Pemeriksaan Nilai
               </th>
-              <th scope="col" className="p-4">
+              <th scope="col" className="px-4 py-3.5">
                 Status Pengajuan
               </th>
-              <th scope="col" className="p-4 text-right">
+              <th scope="col" className="px-4 py-3.5 text-right">
                 Aksi
               </th>
             </tr>
           </thead>
 
-          <tbody className="divide-y divide-line">
+          <tbody className="divide-y divide-slate-900/[0.05] text-ink">
             {loading ? (
-              <SkeletonRows count={5} />
+              <TableSkeletonRows count={5} columns={6} />
+            ) : error ? (
+              <TableErrorState colSpan={6} error={error} onRetry={onRetry} />
             ) : items.length === 0 ? (
-              <tr>
-                <td colSpan={6} className="py-12 text-center text-secondary">
-                  <IconDocumentText className="mx-auto size-10 text-muted" />
-                  <p className="mt-2 text-sm font-semibold text-ink">
-                    Tidak Ada Pengajuan Ditemukan
-                  </p>
-                  <p className="mt-1 text-xs text-muted">
-                    Belum ada pengajuan KP yang sesuai dengan kriteria filter saat ini.
-                  </p>
-                </td>
-              </tr>
+              <TableEmptyState
+                colSpan={6}
+                icon={IconClipboardCheck}
+                title="Belum ada antrean pengajuan KP"
+                description="Belum ada mahasiswa yang mengajukan Kerja Praktik pada periode ini."
+                filteredTitle="Pengajuan tidak ditemukan"
+                filteredDescription="Tidak ada data pengajuan KP yang sesuai dengan kriteria filter atau pencarian Anda."
+                hasActiveFilter={hasActiveFilter}
+                onResetFilter={onResetFilter}
+              />
             ) : (
               items.map((item) => {
                 const mahasiswa = item.mahasiswa || {};
@@ -184,10 +160,10 @@ export default function KpAdminTable({
                 return (
                   <tr
                     key={item.id}
-                    className="transition hover:bg-subtle/30"
+                    className="transition-colors duration-150 hover:bg-slate-50/50"
                   >
                     {/* Kolom 1: Mahasiswa */}
-                    <td className="p-4">
+                    <td className="px-4 py-3.5">
                       <div className="font-bold text-ink">
                         {mahasiswa.nama_lengkap || 'Tanpa Nama'}
                       </div>
@@ -202,7 +178,7 @@ export default function KpAdminTable({
                     </td>
 
                     {/* Kolom 2: Usulan Topik & Periode */}
-                    <td className="p-4 max-w-xs">
+                    <td className="px-4 py-3.5 max-w-xs">
                       <div
                         className="line-clamp-2 font-medium text-ink"
                         title={topik.judul_penelitian || '-'}
@@ -218,22 +194,22 @@ export default function KpAdminTable({
                     </td>
 
                     {/* Kolom 3: Status Kategori Berkas */}
-                    <td className="p-4">
+                    <td className="px-4 py-3.5">
                       <CategoryBadge status={item.status_pemeriksaan_berkas} />
                     </td>
 
                     {/* Kolom 4: Status Kategori Nilai */}
-                    <td className="p-4">
+                    <td className="px-4 py-3.5">
                       <CategoryBadge status={item.status_pemeriksaan_akademik} />
                     </td>
 
                     {/* Kolom 5: Status Pengajuan */}
-                    <td className="p-4">
+                    <td className="px-4 py-3.5">
                       <StatusPengajuanBadge status={item.status_pengajuan} />
                     </td>
 
                     {/* Kolom 6: Aksi */}
-                    <td className="p-4 text-right">
+                    <td className="px-4 py-3.5 text-right">
                       <button
                         type="button"
                         onClick={() => onOpenDetail(item.id)}

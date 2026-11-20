@@ -13,6 +13,7 @@ import DokumenMahasiswaPage from './pages/mahasiswa/DokumenMahasiswaPage.jsx';
 import ProfilMahasiswaPage from './pages/mahasiswa/ProfilMahasiswaPage.jsx';
 import PengajuanKpPage from './pages/mahasiswa/PengajuanKpPage.jsx';
 import PenugasanReviewerKpPage from './pages/kaprodi/PenugasanReviewerKpPage.jsx';
+import FinalisasiPembimbingKpPage from './pages/kaprodi/FinalisasiPembimbingKpPage.jsx';
 import PlaceholderPage from './pages/PlaceholderPage.jsx';
 import LoginPage from './pages/LoginPage.jsx';
 import RoleUnavailablePage from './pages/RoleUnavailablePage.jsx';
@@ -95,7 +96,7 @@ export default function App() {
         <Route index element={<Navigate to="/kaprodi/dashboard" replace />} />
         <Route path="dashboard" element={<PlaceholderPage />} />
         <Route path="kp/penugasan-reviewer" element={<PenugasanReviewerKpPage />} />
-        <Route path="kp/finalisasi" element={<PlaceholderPage />} />
+        <Route path="kp/finalisasi" element={<FinalisasiPembimbingKpPage />} />
         <Route path="iscp" element={<PlaceholderPage />} />
         <Route path="ta" element={<PlaceholderPage />} />
         <Route path="monitoring" element={<PlaceholderPage />} />
