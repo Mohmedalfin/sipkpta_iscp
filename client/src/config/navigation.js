@@ -122,11 +122,28 @@ export const MAHASISWA_NAVIGATION = [
     group: 'Bimbingan & Seminar',
     items: [
       {
-        type: 'link',
+        type: 'accordion',
+        key: 'bimbingan',
         label: 'Bimbingan',
-        to: '/mahasiswa/bimbingan',
         icon: IconUsers,
-        hasChevron: true,
+        activePrefixes: ['/mahasiswa/bimbingan'],
+        children: [
+          {
+            label: 'Kerja Praktik (KP)',
+            to: '/mahasiswa/bimbingan/kp',
+            icon: IconBriefcase,
+          },
+          {
+            label: 'ISCP',
+            to: '/mahasiswa/bimbingan/iscp',
+            icon: IconCube,
+          },
+          {
+            label: 'Tugas Akhir (TA)',
+            to: '/mahasiswa/bimbingan/ta',
+            icon: IconAcademicCap,
+          },
+        ],
       },
       {
         type: 'link',
@@ -440,9 +457,21 @@ export const ROUTE_BREADCRUMBS = {
     { label: 'Monitoring' },
     { label: 'Riwayat Akademik' },
   ],
-  '/mahasiswa/bimbingan': [
-    { label: 'Bimbingan & Seminar' },
+  '/mahasiswa/bimbingan/kp': [
     { label: 'Bimbingan' },
+    { label: 'Kerja Praktik (KP)' },
+  ],
+  '/mahasiswa/bimbingan/iscp': [
+    { label: 'Bimbingan' },
+    { label: 'ISCP' },
+  ],
+  '/mahasiswa/bimbingan/ta': [
+    { label: 'Bimbingan' },
+    { label: 'Tugas Akhir (TA)' },
+  ],
+  '/mahasiswa/bimbingan': [
+    { label: 'Bimbingan' },
+    { label: 'Kerja Praktik (KP)' },
   ],
   '/mahasiswa/seminar': [
     { label: 'Bimbingan & Seminar' },

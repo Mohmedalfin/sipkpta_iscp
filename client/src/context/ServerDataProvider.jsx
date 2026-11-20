@@ -22,7 +22,7 @@ function ScopedDataProvider({ user, children }) {
       const all = refreshAll;
       changed.clear();
       refreshAll = false;
-      // Cancel stale in-flight reads, then refetch only observed review queries.
+      // Cancel stale in-flight reads, then refetch only observed queries.
       const filters = { predicate: (query) => isRealtimeQuery(query.queryKey, all ? null : events) };
       void client.cancelQueries(filters).then(() => {
         if (!controller.signal.aborted) return client.invalidateQueries(filters);
@@ -34,7 +34,7 @@ function ScopedDataProvider({ user, children }) {
     void connectRealtime({ signal: controller.signal, onEvent: (type, data) => {
       if (type === 'ready') { refreshAll = true; schedule(); }
       if (type === 'change' && data.schema_version === 1 &&
-        ['pengajuan.review.updated', 'pengajuan.administration.updated', 'pengajuan.assignment.updated', 'notifikasi.updated'].includes(data.type) &&
+        ['pengajuan.review.updated', 'pengajuan.administration.updated', 'pengajuan.assignment.updated', 'bimbingan.updated', 'bimbingan.draft.updated', 'notifikasi.updated'].includes(data.type) &&
         Number.isSafeInteger(data.resource_id)) {
         changed.set(`${data.type}:${data.resource_id}`, data); schedule();
       }

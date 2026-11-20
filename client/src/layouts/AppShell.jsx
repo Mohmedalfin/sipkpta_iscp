@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import ConfirmDialog from '../components/common/ConfirmDialog.jsx';
+import WhatsAppFloatingButton from '../components/common/WhatsAppFloatingButton.jsx';
 import Sidebar from '../components/layout/Sidebar.jsx';
 import TopBar from '../components/layout/TopBar.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
@@ -43,6 +44,8 @@ export default function AppShell({ children }) {
       setConfirmSignOutOpen(false);
     }
   }
+
+  const isMahasiswa = session?.user?.activeRole === 'MAHASISWA' || location.pathname.startsWith('/mahasiswa');
 
   return (
     <div className="flex h-dvh w-full overflow-hidden bg-canvas">
@@ -105,6 +108,9 @@ export default function AppShell({ children }) {
           </main>
         </div>
       </div>
+
+      {/* Floating WhatsApp Action Button khusus Mahasiswa */}
+      {isMahasiswa && <WhatsAppFloatingButton />}
 
       {/* Logout Confirmation Dialog styled after reference_03.jpeg */}
       <ConfirmDialog

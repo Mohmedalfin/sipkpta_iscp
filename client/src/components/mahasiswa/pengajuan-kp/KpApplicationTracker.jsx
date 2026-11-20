@@ -167,6 +167,22 @@ export default function KpApplicationTracker({
 
   const versiTopik = pengajuan.versi_topik || {};
   const pembimbingResmi = pengajuan.pembimbing?.dosen || null;
+  const usulanPembimbing = pengajuan.usulan_pembimbing || null;
+  const targetDosen = pembimbingResmi || usulanPembimbing;
+  const isResmi = Boolean(pembimbingResmi);
+  const dosenName = targetDosen?.nama_lengkap || null;
+  const dosenCode = targetDosen?.kode_dosen || '-';
+
+  const initials = targetDosen?.nama_lengkap
+    ? targetDosen.nama_lengkap
+        .split(' ')
+        .filter(Boolean)
+        .map((w) => w[0])
+        .slice(0, 2)
+        .join('')
+        .toUpperCase()
+    : 'KP';
+
   const reviewItems = reviews?.items || [];
   const currentProposalId = reviews?.dokumen_pengajuan_id || null;
   const activeReviews = reviewItems.filter(
@@ -328,80 +344,131 @@ export default function KpApplicationTracker({
       {/* ============================================================ */}
       <section
         aria-label="Status Pengajuan Kerja Praktik"
-        className="group relative mt-6 sm:mt-8 overflow-visible rounded-xl border border-line bg-white p-5 sm:p-6 shadow-2xs transition-colors duration-150 hover:border-slate-300"
+        className="group relative mt-3 sm:mt-4 overflow-visible rounded-[18px] border border-slate-900/[0.08] bg-white/80 backdrop-blur-sm p-4 sm:p-5 shadow-2xs transition-colors duration-150 hover:border-slate-300"
       >
-        <div className="relative z-1 flex items-start justify-between gap-4 sm:gap-6">
-          <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="inline-flex items-center gap-1.5 text-xs font-medium text-muted">
-                <IconDocumentText className="size-3.5" aria-hidden="true" />
-                Nomor Pengajuan: #{pengajuan.id}
-              </span>
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 relative z-1">
+          {/* ================= SISI KIRI: PROFIL PEMBIMBING & STATUS PENGAJUAN ================= */}
+          <div className="flex items-start gap-3.5 min-w-0 flex-1">
+            {/* Avatar Inisial Dosen / Status Badge */}
+            <div className="relative shrink-0">
+              <div className="size-11 sm:size-12 rounded-full bg-indigo-50 border border-indigo-200/80 flex items-center justify-center text-indigo-700 font-bold text-sm tracking-tight shadow-2xs">
+                {initials}
+              </div>
               <span
-                className={`inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-medium ${
-                  statusCfg.badgeClass || "border-line bg-subtle text-secondary"
+                className={`absolute bottom-0 right-0 size-3 rounded-full ring-2 ring-white ${
+                  isResmi
+                    ? "bg-emerald-500"
+                    : currentStatus === KP_STATUS_PENGAJUAN.TIDAK_ACC
+                      ? "bg-rose-500"
+                      : "bg-amber-500"
                 }`}
-              >
-                {statusCfg.label}
-              </span>
+                title={isResmi ? "Dosen Pembimbing Resmi Aktif" : statusCfg.label}
+                aria-hidden="true"
+              />
             </div>
 
-            <h2 className="mt-2 max-w-2xl break-words text-base font-semibold leading-snug tracking-tight text-ink sm:text-lg">
-              {versiTopik.judul_penelitian || "Pengajuan Kerja Praktik"}
-            </h2>
-
-            <p className="mt-1 text-xs leading-relaxed text-secondary empty:hidden">
-              {statusCfg.desc}
-            </p>
-
-            {needsProposalRevision &&
-              currentProposalId &&
-              [KP_STATUS_PENGAJUAN.DIAJUKAN, KP_STATUS_PENGAJUAN.ACC].includes(
-                currentStatus,
-              ) && (
-                <button
-                  type="button"
-                  onClick={() => setIsRevisionModalOpen(true)}
-                  className="mt-3.5 inline-flex items-center gap-2 rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-semibold text-white shadow-xs transition hover:bg-amber-600 focus:outline-hidden sm:shrink-0"
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-muted">
+                  {isResmi
+                    ? "Dosen Pembimbing Resmi"
+                    : usulanPembimbing
+                      ? "Usulan Pembimbing"
+                      : "Status Pengajuan"}
+                </span>
+                {dosenCode && dosenCode !== "-" && (
+                  <span className="inline-flex items-center gap-1 rounded-full border border-indigo-200/80 bg-indigo-50/70 px-2 py-0.2 text-[10px] font-semibold text-indigo-800">
+                    Kode: {dosenCode}
+                  </span>
+                )}
+                <span
+                  className={`inline-flex items-center rounded-full border px-2 py-0.2 text-[10px] font-semibold ${
+                    statusCfg.badgeClass || "border-line bg-subtle text-secondary"
+                  }`}
                 >
-                  <IconArrowUpTray className="size-4" />
-                  Unggah Revisi Proposal
-                </button>
+                  {statusCfg.label}
+                </span>
+                {pengajuan.pilihan_topik && (
+                  <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2 py-0.2 text-[10px] font-medium text-secondary">
+                    Jalur {pengajuan.pilihan_topik}
+                  </span>
+                )}
+              </div>
+
+              <h2 className="mt-0.5 text-base sm:text-lg font-bold text-ink truncate" title={dosenName || statusCfg.label}>
+                {dosenName || statusCfg.label}
+              </h2>
+
+              <p className="mt-0.5 text-xs text-secondary leading-relaxed line-clamp-1 empty:hidden">
+                {statusCfg.desc}
+              </p>
+
+              <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-secondary">
+                <span className="flex items-center gap-1.5">
+                  <IconBriefcase className="size-3.5 text-muted shrink-0" />
+                  Nomor Pengajuan: <code className="font-mono text-ink font-semibold">#{pengajuan.nomor_pengajuan || pengajuan.id}</code>
+                </span>
+                {pengajuan.diajukan_at && (
+                  <span className="flex items-center gap-1.5">
+                    <IconCalendarClock className="size-3.5 text-muted shrink-0" />
+                    Diajukan: {formatShortDate(pengajuan.diajukan_at)}
+                  </span>
+                )}
+              </div>
+
+              {needsProposalRevision &&
+                currentProposalId &&
+                [KP_STATUS_PENGAJUAN.DIAJUKAN, KP_STATUS_PENGAJUAN.ACC].includes(
+                  currentStatus,
+                ) && (
+                  <div className="mt-2.5">
+                    <button
+                      type="button"
+                      onClick={() => setIsRevisionModalOpen(true)}
+                      className="inline-flex items-center gap-1.5 rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-semibold text-white shadow-xs transition hover:bg-amber-600 focus:outline-hidden"
+                    >
+                      <IconArrowUpTray className="size-3.5" />
+                      Unggah Revisi Proposal
+                    </button>
+                  </div>
+                )}
+            </div>
+          </div>
+
+          {/* ================= SISI KANAN: KOTAK JUDUL KP DENGAN ILUSTRASI MENEMBUS ================= */}
+          <div className="relative w-full lg:max-w-md rounded-xl border border-slate-900/[0.06] bg-slate-50/75 p-3.5 sm:p-4 text-xs transition-colors group-hover:bg-slate-50">
+            <div className="pr-14 sm:pr-16 md:pr-20">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-muted flex items-center gap-1">
+                <IconAcademicCap className="size-3 text-muted shrink-0" />
+                <span>Judul Kerja Praktik</span>
+              </p>
+              <p
+                className="mt-1 font-semibold text-ink leading-relaxed line-clamp-2"
+                title={versiTopik.judul_penelitian || "Pengajuan Kerja Praktik"}
+              >
+                &ldquo;{versiTopik.judul_penelitian || "Pengajuan Kerja Praktik"}&rdquo;
+              </p>
+              {versiTopik.objek_penelitian && (
+                <p className="mt-1 text-[11px] text-muted flex items-center gap-1 truncate" title={versiTopik.objek_penelitian}>
+                  <IconBriefcase className="size-3 shrink-0" />
+                  <span>{versiTopik.objek_penelitian}</span>
+                </p>
               )}
-          </div>
+            </div>
 
-          {/* Breakout Illustration: Clean minimal breakout */}
-          <div className="relative z-10 shrink-0 pointer-events-none select-none -mt-7 -mr-2 sm:-mt-10 sm:-mr-4 lg:-mt-12 lg:-mr-5">
-            <img
-              src={applicationIllustration}
-              alt=""
-              aria-hidden="true"
-              width="2048"
-              height="1248"
-              decoding="async"
-              className="w-24 object-contain sm:w-32 md:w-40 lg:w-44 drop-shadow-xs motion-safe:transition-transform motion-safe:duration-200 motion-safe:group-hover:-translate-y-0.5"
-            />
+            {/* Ilustrasi Pengajuan KP: Menembus pembungkus judul KP sekaligus batas atas layout utama */}
+            <div className="absolute -top-4 -right-2 sm:-top-5 sm:-right-3 md:-top-6 md:-right-3.5 pointer-events-none select-none z-10">
+              <img
+                src={applicationIllustration}
+                alt=""
+                aria-hidden="true"
+                width="2048"
+                height="1248"
+                decoding="async"
+                className="w-16 sm:w-20 md:w-24 object-contain drop-shadow-xs motion-safe:transition-transform motion-safe:duration-200 motion-safe:group-hover:-translate-y-1"
+              />
+            </div>
           </div>
-        </div>
-
-        {/* Metadata Waktu Pengajuan */}
-        <div className="relative z-1 mt-4 flex flex-wrap gap-x-5 gap-y-1.5 border-t border-line/70 pt-3 text-xs leading-relaxed text-muted">
-          <span>
-            <strong className="font-medium text-secondary">Tanggal Diajukan:</strong>{" "}
-            {formatIndonesianDate(pengajuan.diajukan_at)}
-          </span>
-          <span>
-            <strong className="font-medium text-secondary">Pembaruan Terakhir:</strong>{" "}
-            {formatIndonesianDate(pengajuan.updated_at)}
-          </span>
-          {pengajuan.pilihan_topik && (
-            <span>
-              <strong className="font-medium text-secondary">Jalur:</strong>{" "}
-              <span className="rounded bg-subtle px-1.5 py-0.5 font-medium text-secondary">
-                {pengajuan.pilihan_topik}
-              </span>
-            </span>
-          )}
         </div>
       </section>
 
@@ -410,7 +477,7 @@ export default function KpApplicationTracker({
       {/* ============================================================ */}
       <section
         aria-label="Tahapan Proses Pengajuan"
-        className="rounded-xl border border-line bg-white p-5 sm:p-6"
+        className="rounded-[18px] border border-slate-900/[0.08] bg-white/80 backdrop-blur-sm p-5 sm:p-6 shadow-2xs"
       >
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-line/60 pb-3.5">
           <div className="min-w-0">
@@ -528,7 +595,7 @@ export default function KpApplicationTracker({
       {activeReviews.length > 0 && (
         <section
           aria-label="Catatan Reviewer Proposal"
-          className="rounded-xl border border-line bg-white p-5 sm:p-6"
+          className="rounded-[18px] border border-slate-900/[0.08] bg-white/80 backdrop-blur-sm p-5 sm:p-6 shadow-2xs"
         >
           <div className="flex items-center gap-2 border-b border-line pb-3">
             <IconUsers className="size-5 text-brand" />
@@ -608,7 +675,7 @@ export default function KpApplicationTracker({
       {/* ============================================================ */}
       <section
         aria-label="Rincian Usulan KP"
-        className="rounded-xl border border-line bg-white p-5 sm:p-6"
+        className="rounded-[18px] border border-slate-900/[0.08] bg-white/80 backdrop-blur-sm p-5 sm:p-6 shadow-2xs"
       >
         <h3 className="text-sm font-bold text-ink sm:text-base">
           Rincian Data Usulan Kerja Praktik

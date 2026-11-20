@@ -2,7 +2,7 @@ import multer from 'multer';
 import { rateLimit } from 'express-rate-limit';
 import {
   BIMBINGAN, BimbinganError, attachment, bulkValidate, createDraft, decision,
-  detailStudent, detailSupervisor, historyStudent, listStudent, listSupervisor,
+  detailStudent, detailSupervisor, studentContext, historyStudent, listStudent, listSupervisor,
   progress, submit, updateDraft,
 } from '../services/bimbingan.service.js';
 
@@ -46,8 +46,8 @@ function input(value, create = false) {
 }
 
 function filters(query, supervisor = false) {
-  const allowed = ['page', 'limit', 'jenis_bimbingan', 'status_bimbingan',
-    ...(supervisor ? ['pengajuan_id', 'mahasiswa_id', 'periode_id', 'q'] : [])];
+  const allowed = ['page', 'limit', 'jenis_bimbingan', 'status_bimbingan', 'q',
+    ...(supervisor ? ['pengajuan_id', 'mahasiswa_id', 'periode_id'] : [])];
   if (Object.keys(query).some((key) => !allowed.includes(key))) return null;
   const page = query.page === undefined ? 1 : id(query.page);
   const limit = query.limit === undefined ? 20 : id(query.limit);
@@ -73,6 +73,8 @@ function handler(service, parse, status = 200) {
     catch (error) { fail(error, response, next); }
   };
 }
+
+export const studentContextController = handler(studentContext, () => []);
 
 export const listStudentController = handler(listStudent, (r) => {
   const pengajuanId = id(r.params.pengajuanId);

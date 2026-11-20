@@ -37,7 +37,23 @@ const filesToCheck = [
   'client/src/pages/mahasiswa/ProfilMahasiswaPage.jsx',
   'client/src/pages/mahasiswa/DokumenMahasiswaPage.jsx',
   'client/src/pages/mahasiswa/PengajuanKpPage.jsx',
+  'client/src/components/mahasiswa/pengajuan-kp/KpApplicationTracker.jsx',
+  'client/src/services/bimbinganMahasiswa.js',
+  'client/src/hooks/useBimbinganMahasiswaList.js',
+  'client/src/components/mahasiswa/bimbingan/BimbinganStatusBadge.jsx',
+  'client/src/components/mahasiswa/bimbingan/BimbinganSupervisorCard.jsx',
+  'client/src/components/mahasiswa/bimbingan/BimbinganProgressCard.jsx',
+  'client/src/components/mahasiswa/bimbingan/BimbinganLockedState.jsx',
+  'client/src/components/mahasiswa/bimbingan/BimbinganToolbar.jsx',
+  'client/src/components/mahasiswa/bimbingan/BimbinganTable.jsx',
+  'client/src/components/mahasiswa/bimbingan/BimbinganFormModal.jsx',
+  'client/src/components/mahasiswa/bimbingan/BimbinganDetailModal.jsx',
+  'client/src/components/mahasiswa/bimbingan/index.js',
+  'client/src/pages/mahasiswa/BimbinganKpPage.jsx',
   'client/src/pages/PlaceholderPage.jsx',
+  'client/src/config/navigation.js',
+  'client/src/components/common/WhatsAppFloatingButton.jsx',
+  'client/src/layouts/AppShell.jsx',
   'client/src/App.jsx',
 ];
 
@@ -94,3 +110,32 @@ test('Icons.jsx mengekspor IconClock dan seluruh ikon yang dipakai di komponen f
     }
   }
 });
+
+test('Seluruh relative import pada filesToCheck harus mengarah ke file yang ada di disk', () => {
+  for (const relPath of filesToCheck) {
+    const fullPath = path.resolve(relPath);
+    const content = fs.readFileSync(fullPath, 'utf8');
+    const dir = path.dirname(fullPath);
+
+    const importRegex = /(?:import|export)\s+(?:(?:\{[^}]*\}|[\w$]+|\*\s+as\s+[\w$]+)\s+from\s+)?['"](\.[^'"]+)['"]/g;
+    let match;
+    while ((match = importRegex.exec(content)) !== null) {
+      const importTarget = match[1];
+      const resolved = path.resolve(dir, importTarget);
+      let exists = fs.existsSync(resolved);
+      if (!exists) {
+        for (const ext of ['.jsx', '.js', '/index.js', '/index.jsx']) {
+          if (fs.existsSync(resolved + ext)) {
+            exists = true;
+            break;
+          }
+        }
+      }
+      assert.ok(
+        exists,
+        `File ${relPath} mengimpor relative path '${importTarget}' yang tidak ditemukan di disk`
+      );
+    }
+  }
+});
+

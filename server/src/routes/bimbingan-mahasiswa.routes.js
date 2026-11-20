@@ -4,12 +4,13 @@ import { authorizeRoles } from '../middlewares/authorizeRoles.js';
 import {
   attachmentController, bimbinganUploadRateLimit, createDraftController,
   detailStudentController, historyStudentController, listStudentController,
-  progressController, submitController, updateDraftController,
+  studentContextController, progressController, submitController, updateDraftController,
 } from '../controllers/bimbingan.controller.js';
 
 export function createBimbinganMahasiswaRoutes({ prisma }) {
   const router = Router();
   router.use(authenticate(prisma), authorizeRoles('MAHASISWA'));
+  router.get('/bimbingan/konteks', studentContextController);
   router.get('/:pengajuanId/bimbingan/progres', progressController);
   router.get('/:pengajuanId/bimbingan', listStudentController);
   router.post('/:pengajuanId/bimbingan', createDraftController);

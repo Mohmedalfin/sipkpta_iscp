@@ -1,3 +1,4 @@
+import { publishApplicationChanges } from './realtime.service.js';
 import { createHash, randomUUID } from 'node:crypto';
 import { readPrivateDocument, removePrivateDocument, validatePdfDocument, writePrivateDocument } from './data-diri.service.js';
 import { serializable } from './pengajuan-kp.service.js';
@@ -58,6 +59,27 @@ function assertActive(row) {
       ['SELESAI', 'DITUTUP'].includes(row.status_pengerjaan) || row.penugasan_dosen.length !== 1) {
     throw new BimbinganError(409, 'BIMBINGAN_UNAVAILABLE', 'Pengajuan belum siap untuk bimbingan atau sudah selesai.');
   }
+}
+
+export async function studentContext(db, userId) {
+  const scope = { mahasiswa_id: await studentId(db, userId), tahap_akademik: { kode_tahap: 'KP' } };
+  const orderBy = [{ created_at: 'desc' }, { id: 'desc' }];
+  const select = { id: true, nomor_pengajuan: true, status_pengajuan: true,
+    versi_topik: { select: { judul_penelitian: true } },
+    penugasan_dosen: { where: activeSupervisor, select: { id: true, mulai_at: true,
+      dosen: { select: { id: true, kode_dosen: true, nidn: true, nama_lengkap: true } } } } };
+  const active = await db.pengajuan.findFirst({ where: { ...scope, status_pengajuan: 'ACC',
+    penyelesaian_tahap: null, OR: [{ status_pengerjaan: null }, { status_pengerjaan: { notIn: ['SELESAI', 'DITUTUP'] } }],
+    penugasan_dosen: { some: activeSupervisor } }, orderBy, select });
+  const row = active ?? await db.pengajuan.findFirst({ where: scope, orderBy, select });
+  if (!row) return null;
+  const { penugasan_dosen, ...summary } = row;
+  return { ...summary, pembimbing: penugasan_dosen[0] ?? null,
+    bimbingan_aktif: Boolean(active && penugasan_dosen.length === 1) };
+}
+
+function publishBimbingan(db, ids, type = 'bimbingan.updated') {
+  return publishApplicationChanges(db, ids, type);
 }
 
 async function ownBimbingan(db, pengajuanId, id, actorId, actor) {
@@ -131,7 +153,7 @@ async function lock(db, id) {
 }
 
 export async function createDraft(db, userId, pengajuanId, input) {
-  return serializable(db, async (tx) => {
+  const result = await serializable(db, async (tx) => {
     await tx.$queryRaw`SELECT pg_advisory_xact_lock(20261108, ${pengajuanId}::int) IS NULL AS locked`;
     const pengajuan = await application(tx, pengajuanId, userId, 'student');
     assertActive(pengajuan);
@@ -139,18 +161,21 @@ export async function createDraft(db, userId, pengajuanId, input) {
     return publicItem(await tx.bimbingan.create({ data: { pengajuan_id: pengajuanId,
       jenis_bimbingan: input.jenis_bimbingan, ...value } }));
   });
+  await publishBimbingan(db, [pengajuanId], 'bimbingan.draft.updated');
+  return result;
 }
 
 export async function updateDraft(db, userId, pengajuanId, id, input) {
-  return serializable(db, async (tx) => {
+  const result = await serializable(db, async (tx) => {
     await lock(tx, id);
     const { pengajuan, item } = await ownBimbingan(tx, pengajuanId, id, userId, 'student');
     assertActive(pengajuan);
     if (item.status_bimbingan !== BIMBINGAN.DRAFT) throw conflict();
     return publicItem(await tx.bimbingan.update({ where: { id }, data: content(item, input) }));
   });
+  await publishBimbingan(db, [pengajuanId], 'bimbingan.draft.updated');
+  return result;
 }
-
 async function filesForSubmission(files) {
   if (!Array.isArray(files) || files.length > MAX_FILES) throw new BimbinganError(400, 'INVALID_DOCUMENT', 'Maksimal tiga lampiran PDF.');
   const prepared = [];
@@ -170,13 +195,14 @@ export async function submit(db, userId, pengajuanId, id, input, files = [], rev
     }
   }
   const stored = [];
+  let result;
   try {
     for (const entry of prepared) {
       const key = `bimbingan/${randomUUID()}.pdf`;
       await writePrivateDocument(key, entry.file.buffer);
       stored.push({ ...entry, key });
     }
-    return await serializable(db, async (tx) => {
+    result = await serializable(db, async (tx) => {
       await lock(tx, id);
       const { pengajuan, item } = await ownBimbingan(tx, pengajuanId, id, userId, 'student');
       assertActive(pengajuan);
@@ -211,6 +237,8 @@ export async function submit(db, userId, pengajuanId, id, input, files = [], rev
     }
     throw error;
   }
+  await publishBimbingan(db, [pengajuanId]);
+  return result;
 }
 
 async function decide(tx, item, userId, result, note) {
@@ -233,7 +261,7 @@ function checkDecision(item, userId, expected, result, note = null) {
 }
 
 export async function decision(db, userId, id, input) {
-  return serializable(db, async (tx) => {
+  const result = await serializable(db, async (tx) => {
     await lock(tx, id);
     const item = await tx.bimbingan.findUnique({ where: { id } });
     if (!item) throw notFound();
@@ -242,14 +270,17 @@ export async function decision(db, userId, id, input) {
     const change = checkDecision(item, userId, input.expected_versi_pengiriman,
       input.hasil, input.catatan || null);
     if (change) await decide(tx, item, userId, input.hasil, input.catatan || null);
-    return { bimbingan_id: id, status_bimbingan: input.hasil,
-      versi_pengiriman: item.versi_pengiriman_terakhir, idempotent: !change };
+    return { pengajuanId: item.pengajuan_id, data: { bimbingan_id: id, status_bimbingan: input.hasil,
+      versi_pengiriman: item.versi_pengiriman_terakhir, idempotent: !change } };
   });
+  if (!result.data.idempotent) await publishBimbingan(db, [result.pengajuanId]);
+  return result.data;
 }
 
 export async function bulkValidate(db, userId, items) {
-  return serializable(db, async (tx) => {
+  const result = await serializable(db, async (tx) => {
     let changed = 0;
+    const applicationIds = new Set();
     for (const { bimbingan_id: id, expected_versi_pengiriman: expected } of [...items].sort((a, b) => a.bimbingan_id - b.bimbingan_id)) {
       await lock(tx, id);
       const item = await tx.bimbingan.findUnique({ where: { id } });
@@ -259,15 +290,22 @@ export async function bulkValidate(db, userId, items) {
       if (checkDecision(item, userId, expected, BIMBINGAN.VALID)) {
         await decide(tx, item, userId, BIMBINGAN.VALID, null);
         changed += 1;
+        applicationIds.add(item.pengajuan_id);
       }
     }
-    return { hasil: 'BERHASIL', total_dipilih: items.length,
-      total_diperbarui: changed, total_idempotent: items.length - changed };
+    return { applicationIds: [...applicationIds], data: { hasil: 'BERHASIL', total_dipilih: items.length,
+      total_diperbarui: changed, total_idempotent: items.length - changed } };
   });
+  await publishBimbingan(db, result.applicationIds);
+  return result.data;
 }
 
 export async function progress(db, userId, pengajuanId) {
-  const pengajuan = await application(db, pengajuanId, userId, 'student');
+  return progressForApplication(db, await application(db, pengajuanId, userId, 'student'));
+}
+
+async function progressForApplication(db, pengajuan) {
+  const pengajuanId = pengajuan.id;
   const [counts, rule] = await Promise.all([
     db.bimbingan.groupBy({ by: ['status_bimbingan'], where: { pengajuan_id: pengajuanId }, _count: { id: true } }),
     db.aturanPenyelesaianTahap.findUnique({ where: { tahap_akademik_id_periode_akademik_id: {
@@ -294,17 +332,23 @@ const listSelect = { id: true, pengajuan_id: true, jenis_bimbingan: true, tangga
     versi_topik: { select: { judul_penelitian: true } } } } };
 
 export async function listStudent(db, userId, pengajuanId, query) {
-  await application(db, pengajuanId, userId, 'student');
+  const search = query.q?.replace(/[\\%_]/g, '\\$&');
+  const pengajuan = await application(db, pengajuanId, userId, 'student');
   const where = { pengajuan_id: pengajuanId,
     ...(query.jenis_bimbingan ? { jenis_bimbingan: query.jenis_bimbingan } : {}),
-    ...(query.status_bimbingan ? { status_bimbingan: query.status_bimbingan } : {}) };
-  const [items, total] = await Promise.all([
+    ...(query.status_bimbingan ? { status_bimbingan: query.status_bimbingan } : {}),
+    ...(search ? { OR: [
+      { ringkasan: { contains: search, mode: 'insensitive' } },
+      { catatan_pembimbing_terakhir: { contains: search, mode: 'insensitive' } },
+    ] } : {}) };
+  const [items, total, progres] = await Promise.all([
     db.bimbingan.findMany({ where, select: listSelect, orderBy: { id: 'desc' },
       skip: (query.page - 1) * query.limit, take: query.limit }),
     db.bimbingan.count({ where }),
+    progressForApplication(db, pengajuan),
   ]);
   return { items: items.map(publicItem), pagination: { page: query.page, limit: query.limit,
-    total, total_pages: Math.ceil(total / query.limit) }, progres: await progress(db, userId, pengajuanId) };
+    total, total_pages: Math.ceil(total / query.limit) }, progres };
 }
 
 export async function listSupervisor(db, userId, query) {

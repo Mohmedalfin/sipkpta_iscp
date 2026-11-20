@@ -10,6 +10,7 @@ import { PrismaPg } from '@prisma/adapter-pg';
 import { createApp } from '../src/app.js';
 import { signAccessToken } from '../src/security/jwt.js';
 import { replacePembimbingKp } from '../src/services/finalisasi-kp.service.js';
+import { canReceiveKpEvent, subscribeToUser } from '../src/services/realtime.service.js';
 
 const TEST_DATABASE = 'sipkita_test_kp_d1_spp_20261105070147_1066f27b';
 
@@ -135,6 +136,28 @@ test('Fase I HTTP dan transaksi pada PostgreSQL TEST',
       const own = (suffix = '') => `/api/pengajuan/${application.id}/bimbingan${suffix}`;
       const supervisor = (suffix = '') => `/api/pembimbing/bimbingan${suffix}`;
 
+      const contextPath = '/api/pengajuan/bimbingan/konteks';
+
+      await t.test('context memilih pengajuan KP milik mahasiswa', async () => {
+        assert.equal((await req(contextPath, null)).status, 401);
+        assert.equal((await req(contextPath, mentor.token)).status, 403);
+        assert.equal((await req(contextPath, outsider.token)).body.data, null);
+        const context = await req(contextPath, student.token);
+        assert.equal(context.status, 200);
+        assert.equal(context.body.data.id, application.id);
+        assert.equal(context.body.data.bimbingan_aktif, true);
+        assert.equal(context.body.data.pembimbing.dosen.id, mentor.profileId);
+      });
+
+      const events = { student: [], mentor: [], otherMentor: [], outsider: [], reviewer: [] };
+      const disconnects = [
+        [student, 'MAHASISWA', 'student'], [mentor, 'PEMBIMBING', 'mentor'],
+        [otherMentor, 'PEMBIMBING', 'otherMentor'], [outsider, 'MAHASISWA', 'outsider'],
+        [reviewer, 'REVIEWER', 'reviewer'],
+      ].map(([account, roleCode, label]) =>
+        subscribeToUser(account.id, (event) => { events[label].push(event); }, roleCode));
+      t.after(() => disconnects.forEach((disconnect) => disconnect()));
+
       await t.test('auth, draft, offline dan online', async () => {
         assert.equal((await req(own(), null)).status, 401);
         assert.equal((await req(own(), reviewer.token)).status, 403);
@@ -143,9 +166,17 @@ test('Fase I HTTP dan transaksi pada PostgreSQL TEST',
           tanggal_bimbingan: '2026-11-10', ringkasan: 'Diskusi ERD' });
         assert.equal(created.status, 201);
         ids.first = created.body.data.id;
+        assert.deepEqual(events.student.map(({ type }) => type), ['bimbingan.draft.updated']);
+        assert.equal(events.mentor.length, 0);
         assert.equal((await req(own(`/${ids.first}/kirim`), student.token, 'POST', {})).status, 200);
         const row = await db.bimbingan.findUnique({ where: { id: ids.first } });
         assert.equal(row.status_bimbingan, 'MENUNGGU_VALIDASI');
+        const [event] = events.mentor;
+        assert.equal(event.type, 'bimbingan.updated');
+        assert.equal(event.resource_id, application.id);
+        assert.ok(await canReceiveKpEvent(db, { id: mentor.id, activeRole: 'PEMBIMBING' }, event));
+        assert.equal(await canReceiveKpEvent(db, { id: otherMentor.id, activeRole: 'PEMBIMBING' }, event), false);
+        assert.equal(events.otherMentor.length + events.outsider.length + events.reviewer.length, 0);
         assert.equal(await db.riwayatBimbingan.count({ where: { bimbingan_id: ids.first } }), 1);
         await assert.rejects(replacePembimbingKp(db, kaprodi.id, application.id,
           otherMentor.profileId, 'Uji guard'), { code: 'SUPERVISION_STARTED' });
@@ -208,11 +239,13 @@ test('Fase I HTTP dan transaksi pada PostgreSQL TEST',
         for (const itemId of [ids.fourth, ids.fifth]) {
           assert.equal((await req(own(`/${itemId}/kirim`), student.token, 'POST', {})).status, 200);
         }
+        const eventsBeforeBulk = events.mentor.length;
         const invalidBulk = { konfirmasi_sudah_diperiksa: true, items: [
           { bimbingan_id: ids.fourth, expected_versi_pengiriman: 1 },
           { bimbingan_id: ids.third, expected_versi_pengiriman: 1 }] };
         assert.equal((await req(supervisor('/bulk-validasi'), mentor.token, 'POST', invalidBulk)).status, 409);
         assert.equal((await db.bimbingan.findUnique({ where: { id: ids.fourth } })).status_bimbingan, 'MENUNGGU_VALIDASI');
+        assert.equal(events.mentor.length, eventsBeforeBulk);
         const bulk = { konfirmasi_sudah_diperiksa: true, items: [
           { bimbingan_id: ids.fourth, expected_versi_pengiriman: 1 },
           { bimbingan_id: ids.fifth, expected_versi_pengiriman: 1 }] };
@@ -220,6 +253,7 @@ test('Fase I HTTP dan transaksi pada PostgreSQL TEST',
         assert.equal((await req(supervisor('/bulk-validasi'), mentor.token, 'POST', bulk)).body.data.total_idempotent, 2);
         assert.equal((await req(supervisor(`/${ids.fourth}/keputusan`), mentor.token, 'POST',
           { hasil: 'TERVALIDASI', expected_versi_pengiriman: 1 })).body.data.idempotent, true);
+        assert.equal(events.mentor.length, eventsBeforeBulk + 1);
         const result = await req(own('/progres'), student.token);
         assert.equal(result.body.data.jumlah.tervalidasi, 3);
         assert.equal(result.body.data.jumlah.ditolak, 1);
@@ -234,6 +268,14 @@ test('Fase I HTTP dan transaksi pada PostgreSQL TEST',
         assert.equal(page.body.data.pagination.total, 3);
         assert.equal((await req(supervisor('?page=1&limit=1'), mentor.token)).body.data.items.length, 1);
         assert.equal((await req(own('?limit=1000'), student.token)).status, 400);
+        assert.equal((await req(own('?q=' + 'a'.repeat(101)), student.token)).status, 400);
+        const first = await req(own('?limit=1'), student.token);
+        assert.notEqual(first.body.data.items[0].id, ids.third);
+        const search = await req(own('?limit=1&q=TIDAK%20SAH'), student.token);
+        assert.equal(search.body.data.items[0].id, ids.third);
+        assert.equal(search.body.data.pagination.total, 1);
+        assert.equal(search.body.data.progres.jumlah.tervalidasi, 3);
+        assert.equal((await req(own('?q=%25'), student.token)).body.data.pagination.total, 0);
         const large = await req(own(), student.token, 'POST', { jenis_bimbingan: 'ONLINE', ringkasan: 'Besar' });
         ids.large = large.body.data.id;
         assert.equal((await req(own(`/${ids.large}/kirim`), student.token, 'POST', {},
@@ -264,6 +306,7 @@ test('Fase I HTTP dan transaksi pada PostgreSQL TEST',
         for (const itemId of idsParallel) {
           assert.equal((await req(own(`/${itemId}/kirim`), student.token, 'POST', {})).status, 200);
         }
+
         const bulk = { konfirmasi_sudah_diperiksa: true,
           items: idsParallel.map((itemId) => ({ bimbingan_id: itemId, expected_versi_pengiriman: 1 })) };
         const results = await Promise.all([
@@ -295,8 +338,12 @@ test('Fase I HTTP dan transaksi pada PostgreSQL TEST',
           jenis_pengajuan: 'PERPANJANGAN', pilihan_topik: 'BARU', status_pengajuan: 'ACC',
           pengajuan_sebelumnya_id: application.id } });
         ids.applications.push(next.id);
+        assert.equal((await req(contextPath, student.token)).body.data.id, application.id);
         await db.penugasanDosen.create({ data: { pengajuan_id: next.id,
           dosen_id: mentor.profileId, jenis_penugasan: 'PEMBIMBING', sumber_penugasan: 'KAPRODI' } });
+        assert.equal((await req(contextPath, student.token)).body.data.id, next.id);
+        await db.pengajuan.update({ where: { id: next.id }, data: { status_pengerjaan: 'SELESAI' } });
+        assert.equal((await req(contextPath, student.token)).body.data.id, application.id);
         const result = await req(`/api/pengajuan/${next.id}/bimbingan/progres`, student.token);
         assert.equal(result.status, 200);
         assert.equal(result.body.data.jumlah.tervalidasi, 0);

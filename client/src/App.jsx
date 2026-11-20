@@ -19,6 +19,7 @@ import LoginPage from './pages/LoginPage.jsx';
 import RoleUnavailablePage from './pages/RoleUnavailablePage.jsx';
 
 const ReviewKpPage = lazy(() => import('./pages/reviewer/ReviewKpPage.jsx'));
+const BimbinganKpPage = lazy(() => import('./pages/mahasiswa/BimbinganKpPage.jsx'));
 
 function ProtectedRoute({ role, children }) {
   const { session, initializing } = useAuth();
@@ -69,7 +70,14 @@ export default function App() {
         <Route path="status-pengajuan" element={<PlaceholderPage />} />
         <Route path="review-proposal" element={<PlaceholderPage />} />
         <Route path="riwayat" element={<PlaceholderPage />} />
-        <Route path="bimbingan" element={<PlaceholderPage />} />
+        <Route path="bimbingan" element={<Navigate to="/mahasiswa/bimbingan/kp" replace />} />
+        <Route path="bimbingan/kp" element={
+          <Suspense fallback={<div role="status" className="p-8 text-sm text-secondary">Memuat bimbingan?</div>}>
+            <BimbinganKpPage />
+          </Suspense>
+        } />
+        <Route path="bimbingan/iscp" element={<PlaceholderPage />} />
+        <Route path="bimbingan/ta" element={<PlaceholderPage />} />
         <Route path="seminar" element={<PlaceholderPage />} />
 
         {/* Fallback rute tidak dikenal di dalam /mahasiswa selalu mengarah absolut ke /mahasiswa/dashboard */}

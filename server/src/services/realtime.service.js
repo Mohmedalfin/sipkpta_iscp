@@ -2,6 +2,13 @@ import { randomUUID } from 'node:crypto';
 import { authorizedProdiId } from './mahasiswa.service.js';
 
 const listeners = new Map();
+const BIMBINGAN_UPDATED = 'bimbingan.updated';
+const BIMBINGAN_DRAFT_UPDATED = 'bimbingan.draft.updated';
+const activeBimbinganSupervisor = {
+  jenis_penugasan: 'PEMBIMBING',
+  status_penugasan: 'AKTIF',
+  dosen: { status_data: 'AKTIF' },
+};
 
 const MAX_PENDING_EVENTS = 64;
 const DELIVERY_TIMEOUT_MS = 10000;
@@ -75,6 +82,15 @@ export async function canReceiveKpEvent(prisma, user, event) {
   const id = event.resource_id;
   if (user.activeRole === 'MAHASISWA') return Boolean(await prisma.pengajuan.findFirst({
     where: { id, mahasiswa: { user_id: user.id } }, select: { id: true } }));
+  if (event.type === BIMBINGAN_DRAFT_UPDATED) return false;
+  if (event.type === BIMBINGAN_UPDATED) {
+    if (user.activeRole !== 'PEMBIMBING') return false;
+    return Boolean(await prisma.penugasanDosen.findFirst({
+      where: { ...activeBimbinganSupervisor, pengajuan_id: id,
+        dosen: { ...activeBimbinganSupervisor.dosen, user_id: user.id } },
+      select: { id: true },
+    }));
+  }
   if (user.activeRole === 'REVIEWER') {
     const assignment = await prisma.penugasanDosen.findFirst({ where: {
     pengajuan_id: id, jenis_penugasan: 'REVIEWER',
@@ -92,15 +108,33 @@ export async function canReceiveKpEvent(prisma, user, event) {
   return false;
 }
 
+function enqueueForRole(userId, activeRole, event) {
+  for (const { role, enqueue } of listeners.get(userId) ?? []) {
+    if (role === activeRole) enqueue(event);
+  }
+}
+
 export async function publishApplicationChanges(prisma, applicationIds, type) {
-  if (!applicationIds.length) return;
+  const guidance = type === BIMBINGAN_UPDATED || type === BIMBINGAN_DRAFT_UPDATED;
+  if (!applicationIds.length || (guidance && !listeners.size)) return;
   try {
     const rows = await prisma.pengajuan.findMany({ where: { id: { in: [...new Set(applicationIds)] } },
-      select: { id: true, mahasiswa: { select: { user_id: true } } } });
+      select: { id: true, mahasiswa: { select: { user_id: true } },
+        ...(type === BIMBINGAN_UPDATED && { penugasan_dosen: {
+          where: activeBimbinganSupervisor, select: { dosen: { select: { user_id: true } } },
+        } }),
+      } });
     for (const row of rows) {
       const event = { event_id: randomUUID(), schema_version: 1,
         type, resource_type: 'pengajuan', resource_id: row.id,
         occurred_at: new Date().toISOString() };
+      if (guidance) {
+        enqueueForRole(row.mahasiswa.user_id, 'MAHASISWA', event);
+        for (const { dosen } of row.penugasan_dosen ?? []) {
+          enqueueForRole(dosen.user_id, 'PEMBIMBING', event);
+        }
+        continue;
+      }
       for (const [userId, entries] of listeners) {
         for (const { enqueue, role } of entries) {
           if (role === 'PEMBIMBING' || role === 'MAHASISWA' && userId !== row.mahasiswa.user_id) continue;
@@ -108,7 +142,7 @@ export async function publishApplicationChanges(prisma, applicationIds, type) {
         }
       }
     }
-  } catch { console.error('Realtime review publication failed.'); }
+  } catch { console.error('Realtime application publication failed.'); }
 }
 
 /** Jalankan operasi hingga commit, kemudian terbitkan event tanpa mengubah respons bisnis. */
